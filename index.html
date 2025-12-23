@@ -1,71 +1,323 @@
-<!DOCTYPE html>
-<html lang="en">
-
-  <head>
-    <meta charset="UTF-8">
-    <title>Untitled</title>
-    
-
-  </head>
-    
-  <body>
-  <html lang="ru">
+<html lang="ru">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>RAO расчёт</title>
+  <title>RAO мастер</title>
   <style>
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 24px; max-width: 900px; }
-    textarea, button { font: inherit; }
-    textarea { width: 100%; min-height: 100px; padding: 12px; }
-    button { padding: 10px 14px; margin-top: 10px; cursor: pointer; }
-    pre { white-space: pre-wrap; background: #f6f6f6; padding: 12px; border-radius: 8px; }
-    .hint { color: #555; margin-top: 8px; }
+    #chat { background:#f6f6f6; padding:12px; border-radius:10px; min-height:260px; white-space:pre-wrap; }
+    .row { margin: 10px 0; }
+    input, select, button { font: inherit; }
+    input, select { padding: 10px; width: 100%; box-sizing: border-box; }
+    button { padding: 10px 14px; cursor: pointer; }
+    .hint { color:#555; font-size: 14px; }
   </style>
 </head>
 <body>
-  <h1>RAO расчёт</h1>
+  <h1>Мастер расчёта</h1>
 
-  <textarea id="line" placeholder="Введи строку аргументов, например:
---inn 0326499787 --year 2024 --annual_revenue 33986000 --internet_resources 0 --contract_quarter 1"></textarea>
+  <div id="chat"></div>
 
-  <div class="hint">
-    Это просто веб-обёртка: строка → запуск твоего rao.py → вывод результата.
+  <div class="row" id="inputRow"></div>
+
+  <div class="row">
+    <button id="send">Отправить</button>
+    <button id="restart">Начать заново</button>
   </div>
 
-  <button id="run">Посчитать</button>
-
-  <h2>Результат</h2>
-  <pre id="out"></pre>
-
 <script>
-  const btn = document.getElementById('run');
-  const out = document.getElementById('out');
+  const chat = document.getElementById("chat");
+  const inputRow = document.getElementById("inputRow");
+  const sendBtn = document.getElementById("send");
+  const restartBtn = document.getElementById("restart");
 
-  btn.onclick = async () => {
-    out.textContent = 'Считаю...';
-    const line = document.getElementById('line').value;
+  const A = {}; // ответы
 
-    const res = await fetch('/api/run', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({line})
+  function say(who, text) {
+    chat.textContent += `${who}: ${text}\n\n`;
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function makeInput(type, opts={}) {
+    inputRow.innerHTML = "";
+    let el;
+
+    if (type === "select") {
+      el = document.createElement("select");
+      (opts.choices || []).forEach(v => {
+        const o = document.createElement("option");
+        o.value = v;
+        o.textContent = v;
+        el.appendChild(o);
+      });
+      if (opts.default != null) el.value = opts.default;
+    } else {
+      el = document.createElement("input");
+      el.type = "text";
+      if (opts.placeholder) el.placeholder = opts.placeholder;
+      if (opts.default != null) el.value = String(opts.default);
+    }
+
+    el.id = "userInput";
+    inputRow.appendChild(el);
+
+    if (opts.hint) {
+      const h = document.createElement("div");
+      h.className = "hint";
+      h.textContent = opts.hint;
+      inputRow.appendChild(h);
+    }
+    el.focus();
+  }
+
+  function getVal() {
+    const el = document.getElementById("userInput");
+    return (el?.value ?? "").trim();
+  }
+
+  function parseYesNo(s, defBool) {
+    if (!s) return defBool;
+    const t = s.toLowerCase();
+    if (["y","yes","д","да"].includes(t)) return true;
+    if (["n","no","н","нет"].includes(t)) return false;
+    return null;
+  }
+
+  function parseIntMaybe(s) {
+    if (!s) return null;
+    const t = s.replace(/\s+/g, "");
+    if (!/^-?\d+$/.test(t)) return NaN;
+    return parseInt(t, 10);
+  }
+
+  function parseFloatMaybe(s) {
+    if (!s) return null;
+    const t = s.replace(/\s+/g, "").replace(",", ".");
+    const v = Number(t);
+    return Number.isFinite(v) ? v : NaN;
+  }
+
+  function numToArg(v) {
+    if (v == null) return null;
+    // красиво: 10.0 -> 10
+    if (Number.isInteger(v)) return String(v);
+    return String(v);
+  }
+
+  // шаги (по смыслу как wizard_collect_argv)
+  const steps = [
+    {
+      key: "inn",
+      ask: () => { say("Бот", "1) Введите ИНН (10/12 цифр):"); makeInput("text"); },
+      validate: (s) => /^\d{10}(\d{2})?$/.test(s) ? s : null,
+      onError: () => say("Бот", "ИНН должен состоять из 10 или 12 цифр (без пробелов).")
+    },
+    {
+      key: "year",
+      ask: () => { say("Бот", "2) Год (например 2024) (Enter = пропустить):"); makeInput("text", {placeholder:"например 2024"}); },
+      validate: (s) => {
+        if (!s) return null;
+        const v = parseIntMaybe(s);
+        if (!Number.isInteger(v) || v < 1900 || v > 2100) return null;
+        return v;
+      },
+      onError: () => say("Бот", "Введите год числом от 1900 до 2100, или оставьте пустым.")
+    },
+    {
+      key: "have_q",
+      ask: () => { say("Бот", "3) Есть точные ДОХОДЫ за квартал? (Y/N, Enter=N)"); makeInput("text", {placeholder:"Y или N"}); },
+      validate: (s) => {
+        const b = parseYesNo(s, false);
+        return (b === null) ? null : b;
+      },
+      onError: () => say("Бот", "Ответьте Y или N.")
+    },
+    {
+      key: "revenue_q",
+      ask: () => {
+        if (A.have_q) {
+          say("Бот", "Введите доходы за квартал (без пробелов):");
+          makeInput("text", {placeholder:"например 1234567"});
+        } else {
+          next(); // пропускаем этот шаг
+        }
+      },
+      validate: (s) => {
+        const v = parseFloatMaybe(s);
+        if (!Number.isFinite(v) || v < 0) return null;
+        return v;
+      },
+      onError: () => say("Бот", "Введите число >= 0 (пример: 33986000 или 33986000.50).")
+    },
+    {
+      key: "have_y",
+      ask: () => {
+        if (!A.have_q) {
+          say("Бот", "4) Есть ДОХОД/ВЫРУЧКА за год? (Y/N, Enter=Y)");
+          makeInput("text", {placeholder:"Y или N"});
+        } else {
+          next();
+        }
+      },
+      validate: (s) => {
+        const b = parseYesNo(s, true);
+        return (b === null) ? null : b;
+      },
+      onError: () => say("Бот", "Ответьте Y или N.")
+    },
+    {
+      key: "annual_revenue",
+      ask: () => {
+        if (!A.have_q && A.have_y) {
+          say("Бот", "Введите годовую выручку/доход (без пробелов):");
+          makeInput("text", {placeholder:"например 33986000"});
+        } else {
+          next();
+        }
+      },
+      validate: (s) => {
+        const v = parseFloatMaybe(s);
+        if (!Number.isFinite(v) || v < 0) return null;
+        return v;
+      },
+      onError: () => say("Бот", "Введите число >= 0.")
+    },
+    {
+      key: "internet_resources",
+      ask: () => { say("Бот", "6) Интернет-ресурсы со стримингом (0 если нет):"); makeInput("text", {default:0}); },
+      validate: (s) => {
+        const v = parseIntMaybe(s);
+        if (!Number.isInteger(v) || v < 0 || v > 1000) return null;
+        return v;
+      },
+      onError: () => say("Бот", "Введите целое число от 0 до 1000.")
+    },
+    {
+      key: "contract_quarter",
+      ask: () => { say("Бот", "7) Номер квартала действия договора (1..4):"); makeInput("text", {default:1}); },
+      validate: (s) => {
+        const v = parseIntMaybe(s);
+        if (!Number.isInteger(v) || v < 1 || v > 4) return null;
+        return v;
+      },
+      onError: () => say("Бот", "Введите 1, 2, 3 или 4.")
+    },
+    {
+      key: "contract_media",
+      ask: () => {
+        say("Бот", "8) Среда по ДОГОВОРУ (auto/cable/air/both):");
+        makeInput("select", {choices:["auto","cable","air","both"], default:"auto"});
+      },
+      validate: (s) => ["auto","cable","air","both"].includes(s) ? s : null,
+      onError: () => say("Бот", "Выберите один из вариантов: auto/cable/air/both.")
+    },
+    {
+      key: "only_license",
+      ask: () => { say("Бот", "9) Считать только одну лицензию? (Enter = все):"); makeInput("text"); },
+      validate: (s) => s ? s : null
+    },
+    {
+      key: "population_override",
+      ask: () => { say("Бот", "Фактическая территория по письму (если отличается от РКН). Введите население (Enter = нет):"); makeInput("text"); },
+      validate: (s) => {
+        if (!s) return null;
+        const v = parseIntMaybe(s);
+        if (!Number.isInteger(v) || v < 0 || v > 2000000000) return null;
+        return v;
+      },
+      onError: () => say("Бот", "Введите целое число населения или оставьте пустым.")
+    },
+    {
+      key: "have_past",
+      ask: () => { say("Бот", "10) Есть сумма фактических платежей по проценту за прошлый год? (Y/N, Enter=N)"); makeInput("text"); },
+      validate: (s) => {
+        const b = parseYesNo(s, false);
+        return (b === null) ? null : b;
+      },
+      onError: () => say("Бот", "Ответьте Y или N.")
+    },
+    {
+      key: "past_year_percent_paid",
+      ask: () => {
+        if (A.have_past) {
+          say("Бот", "Введите сумму фактических платежей по проценту за прошлый год (без пробелов):");
+          makeInput("text");
+        } else {
+          next();
+        }
+      },
+      validate: (s) => {
+        const v = parseFloatMaybe(s);
+        if (!Number.isFinite(v) || v < 0) return null;
+        return v;
+      },
+      onError: () => say("Бот", "Введите число >= 0.")
+    },
+  ];
+
+  let i = 0;
+
+  function next() {
+    i++;
+    if (i >= steps.length) return finish();
+    steps[i].ask();
+  }
+
+  async function finish() {
+    say("Бот", "Ок, считаю…");
+
+    const argv = ["--inn", A.inn];
+    if (A.year != null) argv.push("--year", String(A.year));
+    if (A.revenue_q != null) argv.push("--revenue_q", numToArg(A.revenue_q));
+    if (A.annual_revenue != null) argv.push("--annual_revenue", numToArg(A.annual_revenue));
+    argv.push("--internet_resources", String(A.internet_resources ?? 0));
+    argv.push("--contract_quarter", String(A.contract_quarter ?? 1));
+    argv.push("--contract_media", String(A.contract_media ?? "auto"));
+    if (A.only_license) argv.push("--only_license", A.only_license);
+    if (A.population_override != null) argv.push("--population_override", String(A.population_override));
+    if (A.past_year_percent_paid != null) argv.push("--past_year_percent_paid", numToArg(A.past_year_percent_paid));
+
+    const res = await fetch("/api/run_argv", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({argv})
     });
 
-    let data;
-    try {
-      data = await res.json();
-    } catch {
-      out.textContent = 'Ошибка: сервер вернул не-JSON';
+    const data = await res.json().catch(() => ({output:"Ошибка: сервер вернул не-JSON"}));
+    say("Результат", data.output ?? JSON.stringify(data, null, 2));
+
+    makeInput("text", {placeholder:"Если нужно — нажми «Начать заново»"});
+  }
+
+  function handleSend() {
+    const step = steps[i];
+    const raw = getVal();
+
+    // для select читаем value как есть
+    const el = document.getElementById("userInput");
+    const val = (el && el.tagName === "SELECT") ? el.value : raw;
+
+    const parsed = step.validate ? step.validate(val) : val;
+    if (parsed === null) {
+      step.onError && step.onError();
       return;
     }
 
-    out.textContent = data.output ?? JSON.stringify(data, null, 2);
+    A[step.key] = parsed;
+    say("Ты", val || "(пусто)");
+    next();
+  }
+
+  sendBtn.onclick = handleSend;
+  restartBtn.onclick = () => {
+    chat.textContent = "";
+    i = 0;
+    for (const k in A) delete A[k];
+    steps[0].ask();
   };
+
+  // старт
+  steps[0].ask();
 </script>
 </body>
-</html>
-    
-  </body>
-  
 </html>
