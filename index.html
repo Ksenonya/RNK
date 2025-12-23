@@ -2,322 +2,733 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>RAO мастер</title>
+  <title>RAO — Расчёт</title>
   <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 24px; max-width: 900px; }
-    #chat { background:#f6f6f6; padding:12px; border-radius:10px; min-height:260px; white-space:pre-wrap; }
-    .row { margin: 10px 0; }
-    input, select, button { font: inherit; }
-    input, select { padding: 10px; width: 100%; box-sizing: border-box; }
-    button { padding: 10px 14px; cursor: pointer; }
-    .hint { color:#555; font-size: 14px; }
+    :root{
+      --bg:#0b1220;
+      --card:#0f1a2d;
+      --card2:#0c1628;
+      --text:#e8eefc;
+      --muted:#a8b4d6;
+      --line:rgba(255,255,255,.10);
+      --accent:#4f8cff;
+      --accent2:#2dd4bf;
+      --danger:#ff5a6b;
+      --shadow: 0 18px 45px rgba(0,0,0,.35);
+      --radius: 16px;
+    }
+
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      background:
+        radial-gradient(1200px 700px at 10% 0%, rgba(79,140,255,.18), transparent 55%),
+        radial-gradient(1000px 600px at 90% 20%, rgba(45,212,191,.14), transparent 55%),
+        var(--bg);
+      color:var(--text);
+    }
+
+    .wrap{ max-width: 1060px; margin: 28px auto; padding: 0 16px; }
+    .topbar{
+      display:flex; gap:16px; align-items:flex-start; justify-content:space-between;
+      margin-bottom: 16px;
+    }
+    .brand{
+      display:flex; flex-direction:column; gap:6px;
+    }
+    .brand h1{
+      font-size: 20px; margin:0;
+      letter-spacing:.2px;
+    }
+    .brand p{
+      margin:0; color:var(--muted); font-size: 14px; line-height: 1.35;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 16px;
+    }
+    @media (max-width: 920px){
+      .grid{ grid-template-columns:1fr; }
+    }
+
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .card .head{
+      padding: 16px 16px 12px 16px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(0,0,0,.15);
+    }
+    .card .body{ padding: 16px; }
+
+    .progressRow{
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+      margin-top: 10px;
+    }
+    .progress{
+      flex:1;
+      height: 10px;
+      background: rgba(255,255,255,.08);
+      border-radius: 999px;
+      overflow:hidden;
+      border: 1px solid rgba(255,255,255,.06);
+    }
+    .progress > div{
+      height:100%;
+      width:0%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 999px;
+      transition: width .25s ease;
+    }
+    .progressLabel{
+      font-size: 12px; color:var(--muted); white-space:nowrap;
+    }
+
+    .questionTitle{
+      font-size: 16px; margin: 0 0 8px 0;
+    }
+    .questionText{
+      margin: 0 0 14px 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    label{
+      display:block;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    input, select, textarea{
+      width:100%;
+      padding: 12px 12px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 12px;
+      color: var(--text);
+      outline:none;
+      transition: border-color .15s ease, box-shadow .15s ease;
+    }
+    input::placeholder, textarea::placeholder{ color: rgba(168,180,214,.65); }
+    input:focus, select:focus, textarea:focus{
+      border-color: rgba(79,140,255,.55);
+      box-shadow: 0 0 0 4px rgba(79,140,255,.12);
+    }
+
+    .help{
+      margin-top: 8px;
+      font-size: 12px;
+      color: rgba(168,180,214,.85);
+      line-height: 1.4;
+    }
+
+    .error{
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,90,107,.35);
+      background: rgba(255,90,107,.10);
+      color: #ffd2d8;
+      font-size: 13px;
+      display:none;
+    }
+
+    .actions{
+      display:flex; gap:10px; flex-wrap:wrap;
+      margin-top: 14px;
+    }
+    .btn{
+      appearance:none; border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 12px;
+      cursor:pointer;
+      font-weight: 600;
+      font-size: 14px;
+      transition: transform .06s ease, background .15s ease, border-color .15s ease;
+      display:inline-flex; align-items:center; gap:8px;
+      user-select:none;
+    }
+    .btn:hover{ background: rgba(255,255,255,.09); }
+    .btn:active{ transform: translateY(1px); }
+    .btn[disabled]{ opacity:.5; cursor:not-allowed; }
+
+    .btnPrimary{
+      background: linear-gradient(90deg, rgba(79,140,255,.95), rgba(45,212,191,.70));
+      border-color: rgba(255,255,255,.10);
+      color: #08101f;
+    }
+    .btnPrimary:hover{ filter: brightness(1.02); }
+    .btnGhost{
+      background: transparent;
+    }
+    .btnDanger{
+      border-color: rgba(255,90,107,.28);
+      background: rgba(255,90,107,.10);
+      color:#ffd2d8;
+    }
+
+    .pill{
+      display:inline-flex; align-items:center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.10);
+      color: var(--muted);
+      font-size: 12px;
+      gap: 8px;
+    }
+
+    /* Summary */
+    .kv{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap:10px;
+    }
+    .kv .item{
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.18);
+    }
+    .kv .k{
+      font-size: 12px; color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .kv .v{
+      font-size: 14px; color: var(--text);
+      word-break: break-word;
+    }
+
+    /* Output */
+    pre{
+      margin:0;
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.25);
+      white-space: pre-wrap;
+      min-height: 140px;
+      color: #dfe8ff;
+      font-size: 13px;
+      line-height: 1.35;
+    }
+    .row2{
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      margin-bottom: 10px;
+    }
+    .spinner{
+      width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,.25);
+      border-top-color: rgba(255,255,255,.85);
+      border-radius: 999px;
+      animation: spin .8s linear infinite;
+      display:none;
+    }
+    @keyframes spin{ to{ transform: rotate(360deg);} }
+    .muted{ color: var(--muted); font-size: 13px; }
   </style>
 </head>
+
 <body>
-  <h1>Мастер расчёта</h1>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="brand">
+        <h1>RAO — Расчёт по мастеру</h1>
+        <p>Пошаговый ввод данных (как в боте). В конце запускается расчёт на сервере и выводится результат.</p>
+      </div>
+      <div class="pill" id="modePill">Мастер: активен</div>
+    </div>
 
-  <div id="chat"></div>
+    <div class="grid">
+      <!-- LEFT: Wizard -->
+      <div class="card">
+        <div class="head">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+            <div>
+              <div class="pill" id="stepPill">Шаг 1</div>
+            </div>
+            <div class="progressLabel" id="progressLabel">0%</div>
+          </div>
 
-  <div class="row" id="inputRow"></div>
+          <div class="progressRow">
+            <div class="progress"><div id="progressBar"></div></div>
+          </div>
+        </div>
 
-  <div class="row">
-    <button id="send">Отправить</button>
-    <button id="restart">Начать заново</button>
+        <div class="body">
+          <h2 class="questionTitle" id="qTitle">Вопрос</h2>
+          <p class="questionText" id="qText"></p>
+
+          <div id="inputBox"></div>
+          <div class="error" id="errBox"></div>
+
+          <div class="actions">
+            <button class="btn btnGhost" id="backBtn">← Назад</button>
+            <button class="btn btnPrimary" id="nextBtn">Далее →</button>
+            <button class="btn btnDanger" id="restartBtn">Начать заново</button>
+          </div>
+
+          <div class="help" style="margin-top:14px;">
+            Подсказка: можно нажимать <b>Enter</b>, чтобы перейти дальше.
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Summary + Output -->
+      <div style="display:flex; flex-direction:column; gap:16px;">
+        <div class="card">
+          <div class="head">
+            <div class="row2">
+              <div class="pill">Введённые данные</div>
+              <div class="muted" id="summaryHint">Заполняй шаги слева</div>
+            </div>
+          </div>
+          <div class="body">
+            <div class="kv" id="summary"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="head">
+            <div class="row2">
+              <div class="pill">Результат</div>
+              <div style="display:flex; align-items:center; gap:10px;">
+                <div class="spinner" id="spin"></div>
+                <button class="btn" id="copyBtn">Скопировать</button>
+              </div>
+            </div>
+          </div>
+          <div class="body">
+            <pre id="output">Результат появится здесь после завершения мастера.</pre>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
 <script>
-  const chat = document.getElementById("chat");
-  const inputRow = document.getElementById("inputRow");
-  const sendBtn = document.getElementById("send");
-  const restartBtn = document.getElementById("restart");
+  // Хранилище ответов
+  const A = {};
 
-  const A = {}; // ответы
+  // UI элементы
+  const qTitle = document.getElementById("qTitle");
+  const qText  = document.getElementById("qText");
+  const inputBox = document.getElementById("inputBox");
+  const errBox = document.getElementById("errBox");
+  const backBtn = document.getElementById("backBtn");
+  const nextBtn = document.getElementById("nextBtn");
+  const restartBtn = document.getElementById("restartBtn");
+  const stepPill = document.getElementById("stepPill");
+  const progressBar = document.getElementById("progressBar");
+  const progressLabel = document.getElementById("progressLabel");
+  const summary = document.getElementById("summary");
+  const output = document.getElementById("output");
+  const copyBtn = document.getElementById("copyBtn");
+  const spin = document.getElementById("spin");
 
-  function say(who, text) {
-    chat.textContent += `${who}: ${text}\n\n`;
-    chat.scrollTop = chat.scrollHeight;
+  function showError(msg){
+    if(!msg){ errBox.style.display="none"; errBox.textContent=""; return; }
+    errBox.style.display="block";
+    errBox.textContent = msg;
   }
 
-  function makeInput(type, opts={}) {
-    inputRow.innerHTML = "";
-    let el;
-
-    if (type === "select") {
-      el = document.createElement("select");
-      (opts.choices || []).forEach(v => {
-        const o = document.createElement("option");
-        o.value = v;
-        o.textContent = v;
-        el.appendChild(o);
-      });
-      if (opts.default != null) el.value = opts.default;
-    } else {
-      el = document.createElement("input");
-      el.type = "text";
-      if (opts.placeholder) el.placeholder = opts.placeholder;
-      if (opts.default != null) el.value = String(opts.default);
-    }
-
-    el.id = "userInput";
-    inputRow.appendChild(el);
-
-    if (opts.hint) {
-      const h = document.createElement("div");
-      h.className = "hint";
-      h.textContent = opts.hint;
-      inputRow.appendChild(h);
-    }
-    el.focus();
-  }
-
-  function getVal() {
-    const el = document.getElementById("userInput");
-    return (el?.value ?? "").trim();
-  }
-
-  function parseYesNo(s, defBool) {
-    if (!s) return defBool;
-    const t = s.toLowerCase();
-    if (["y","yes","д","да"].includes(t)) return true;
-    if (["n","no","н","нет"].includes(t)) return false;
+  function parseYesNo(s, defBool){
+    if(!s) return defBool;
+    const t = s.trim().toLowerCase();
+    if(["y","yes","д","да"].includes(t)) return true;
+    if(["n","no","н","нет"].includes(t)) return false;
     return null;
   }
-
-  function parseIntMaybe(s) {
-    if (!s) return null;
-    const t = s.replace(/\s+/g, "");
-    if (!/^-?\d+$/.test(t)) return NaN;
-    return parseInt(t, 10);
+  function parseIntMaybe(s){
+    if(s == null) return null;
+    const t = String(s).trim().replace(/\s+/g,"");
+    if(!t) return null;
+    if(!/^-?\d+$/.test(t)) return NaN;
+    return parseInt(t,10);
   }
-
-  function parseFloatMaybe(s) {
-    if (!s) return null;
-    const t = s.replace(/\s+/g, "").replace(",", ".");
+  function parseFloatMaybe(s){
+    if(s == null) return null;
+    const t = String(s).trim().replace(/\s+/g,"").replace(",",".");
+    if(!t) return null;
     const v = Number(t);
     return Number.isFinite(v) ? v : NaN;
   }
-
-  function numToArg(v) {
-    if (v == null) return null;
-    // красиво: 10.0 -> 10
-    if (Number.isInteger(v)) return String(v);
+  function numToArg(v){
+    if(v == null) return null;
+    if(Number.isInteger(v)) return String(v);
     return String(v);
   }
 
-  // шаги (по смыслу как wizard_collect_argv)
+  function setInputText({label, placeholder="", value=""}){
+    inputBox.innerHTML = `
+      <label>${label}</label>
+      <input id="userInput" type="text" placeholder="${escapeHtml(placeholder)}" value="${escapeHtml(String(value ?? ""))}"/>
+    `;
+    const el = document.getElementById("userInput");
+    el.focus();
+    el.addEventListener("keydown", (e)=>{
+      if(e.key === "Enter"){ e.preventDefault(); nextBtn.click(); }
+    });
+  }
+
+  function setInputSelect({label, choices, value}){
+    const opts = choices.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+    inputBox.innerHTML = `
+      <label>${label}</label>
+      <select id="userInput">${opts}</select>
+    `;
+    const el = document.getElementById("userInput");
+    if(value != null) el.value = value;
+    el.focus();
+    el.addEventListener("keydown", (e)=>{
+      if(e.key === "Enter"){ e.preventDefault(); nextBtn.click(); }
+    });
+  }
+
+  function getInputValue(){
+    const el = document.getElementById("userInput");
+    if(!el) return "";
+    return el.value ?? "";
+  }
+
+  function escapeHtml(s){
+    return String(s)
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
+
+  function updateSummary(){
+    const items = [
+      ["ИНН", A.inn],
+      ["Год", A.year],
+      ["Доход за квартал", A.revenue_q],
+      ["Годовая выручка", A.annual_revenue],
+      ["Интернет-ресурсы", A.internet_resources],
+      ["Квартал договора", A.contract_quarter],
+      ["Среда договора", A.contract_media],
+      ["Только лицензия", A.only_license],
+      ["Население (override)", A.population_override],
+      ["Платежи за прошлый год", A.past_year_percent_paid],
+    ];
+
+    summary.innerHTML = items
+      .filter(([k,v]) => v !== undefined && v !== null && String(v).length)
+      .map(([k,v]) => `
+        <div class="item">
+          <div class="k">${escapeHtml(k)}</div>
+          <div class="v">${escapeHtml(v)}</div>
+        </div>
+      `).join("");
+
+    if(!summary.innerHTML){
+      summary.innerHTML = `<div class="muted">Пока ничего нет. Заполни первый шаг.</div>`;
+    }
+  }
+
+  // Шаги мастера
   const steps = [
     {
-      key: "inn",
-      ask: () => { say("Бот", "1) Введите ИНН (10/12 цифр):"); makeInput("text"); },
-      validate: (s) => /^\d{10}(\d{2})?$/.test(s) ? s : null,
-      onError: () => say("Бот", "ИНН должен состоять из 10 или 12 цифр (без пробелов).")
+      key:"inn",
+      title:"ИНН организации",
+      text:"Введите ИНН (10 или 12 цифр, без пробелов).",
+      render: ()=> setInputText({label:"ИНН", placeholder:"например 0326499787"}),
+      validate: (v)=> (/^\d{10}(\d{2})?$/.test(v.trim()) ? v.trim() : null),
+      error: "ИНН должен состоять из 10 или 12 цифр."
     },
     {
-      key: "year",
-      ask: () => { say("Бот", "2) Год (например 2024) (Enter = пропустить):"); makeInput("text", {placeholder:"например 2024"}); },
-      validate: (s) => {
-        if (!s) return null;
-        const v = parseIntMaybe(s);
-        if (!Number.isInteger(v) || v < 1900 || v > 2100) return null;
-        return v;
+      key:"year",
+      title:"Год расчёта",
+      text:"Введите год (например 2024). Если оставить пустым — будет использован год по умолчанию.",
+      render: ()=> setInputText({label:"Год", placeholder:"например 2024 (можно пусто)"}),
+      validate: (v)=>{
+        const s = v.trim();
+        if(!s) return null;
+        const n = parseIntMaybe(s);
+        if(!Number.isInteger(n) || n < 1900 || n > 2100) return null;
+        return n;
       },
-      onError: () => say("Бот", "Введите год числом от 1900 до 2100, или оставьте пустым.")
+      error:"Введите год числом от 1900 до 2100, или оставьте поле пустым."
     },
     {
-      key: "have_q",
-      ask: () => { say("Бот", "3) Есть точные ДОХОДЫ за квартал? (Y/N, Enter=N)"); makeInput("text", {placeholder:"Y или N"}); },
-      validate: (s) => {
-        const b = parseYesNo(s, false);
-        return (b === null) ? null : b;
-      },
-      onError: () => say("Бот", "Ответьте Y или N.")
+      key:"have_q",
+      title:"Доходы за квартал",
+      text:"Есть точные доходы именно за квартал? (Да/Нет). Если нет — спросим годовую выручку.",
+      render: ()=> setInputSelect({label:"Есть доход за квартал?", choices:["Нет","Да"], value:"Нет"}),
+      validate: (v)=> (v === "Да"),
     },
     {
-      key: "revenue_q",
-      ask: () => {
-        if (A.have_q) {
-          say("Бот", "Введите доходы за квартал (без пробелов):");
-          makeInput("text", {placeholder:"например 1234567"});
-        } else {
-          next(); // пропускаем этот шаг
-        }
+      key:"revenue_q",
+      title:"Сумма дохода за квартал",
+      text:"Введите сумму (число).",
+      when: ()=> A.have_q === true,
+      render: ()=> setInputText({label:"Доход за квартал", placeholder:"например 1250000"}),
+      validate: (v)=>{
+        const n = parseFloatMaybe(v);
+        if(!Number.isFinite(n) || n < 0) return null;
+        return n;
       },
-      validate: (s) => {
-        const v = parseFloatMaybe(s);
-        if (!Number.isFinite(v) || v < 0) return null;
-        return v;
-      },
-      onError: () => say("Бот", "Введите число >= 0 (пример: 33986000 или 33986000.50).")
+      error:"Введите число ≥ 0 (например 33986000 или 33986000.50)."
     },
     {
-      key: "have_y",
-      ask: () => {
-        if (!A.have_q) {
-          say("Бот", "4) Есть ДОХОД/ВЫРУЧКА за год? (Y/N, Enter=Y)");
-          makeInput("text", {placeholder:"Y или N"});
-        } else {
-          next();
-        }
-      },
-      validate: (s) => {
-        const b = parseYesNo(s, true);
-        return (b === null) ? null : b;
-      },
-      onError: () => say("Бот", "Ответьте Y или N.")
+      key:"have_y",
+      title:"Годовая выручка",
+      text:"Есть годовая выручка/доход? (Да/Нет). Если нет — расчёт может быть неполным.",
+      when: ()=> A.have_q !== true,
+      render: ()=> setInputSelect({label:"Есть годовая выручка?", choices:["Да","Нет"], value:"Да"}),
+      validate: (v)=> (v === "Да"),
     },
     {
-      key: "annual_revenue",
-      ask: () => {
-        if (!A.have_q && A.have_y) {
-          say("Бот", "Введите годовую выручку/доход (без пробелов):");
-          makeInput("text", {placeholder:"например 33986000"});
-        } else {
-          next();
-        }
+      key:"annual_revenue",
+      title:"Сумма годовой выручки",
+      text:"Введите сумму (число).",
+      when: ()=> (A.have_q !== true) && (A.have_y === true),
+      render: ()=> setInputText({label:"Годовая выручка", placeholder:"например 33986000"}),
+      validate: (v)=>{
+        const n = parseFloatMaybe(v);
+        if(!Number.isFinite(n) || n < 0) return null;
+        return n;
       },
-      validate: (s) => {
-        const v = parseFloatMaybe(s);
-        if (!Number.isFinite(v) || v < 0) return null;
-        return v;
-      },
-      onError: () => say("Бот", "Введите число >= 0.")
+      error:"Введите число ≥ 0."
     },
     {
-      key: "internet_resources",
-      ask: () => { say("Бот", "6) Интернет-ресурсы со стримингом (0 если нет):"); makeInput("text", {default:0}); },
-      validate: (s) => {
-        const v = parseIntMaybe(s);
-        if (!Number.isInteger(v) || v < 0 || v > 1000) return null;
-        return v;
+      key:"internet_resources",
+      title:"Интернет-ресурсы",
+      text:"Количество интернет-ресурсов со стримингом. Если нет — укажите 0.",
+      render: ()=> setInputText({label:"Интернет-ресурсы", placeholder:"0", value: (A.internet_resources ?? 0)}),
+      validate: (v)=>{
+        const n = parseIntMaybe(v);
+        if(!Number.isInteger(n) || n < 0 || n > 1000) return null;
+        return n;
       },
-      onError: () => say("Бот", "Введите целое число от 0 до 1000.")
+      error:"Введите целое число от 0 до 1000."
     },
     {
-      key: "contract_quarter",
-      ask: () => { say("Бот", "7) Номер квартала действия договора (1..4):"); makeInput("text", {default:1}); },
-      validate: (s) => {
-        const v = parseIntMaybe(s);
-        if (!Number.isInteger(v) || v < 1 || v > 4) return null;
-        return v;
-      },
-      onError: () => say("Бот", "Введите 1, 2, 3 или 4.")
+      key:"contract_quarter",
+      title:"Квартал договора",
+      text:"Номер квартала действия договора (1–4).",
+      render: ()=> setInputSelect({label:"Квартал договора", choices:["1","2","3","4"], value: String(A.contract_quarter ?? 1)}),
+      validate: (v)=> parseInt(v,10),
     },
     {
-      key: "contract_media",
-      ask: () => {
-        say("Бот", "8) Среда по ДОГОВОРУ (auto/cable/air/both):");
-        makeInput("select", {choices:["auto","cable","air","both"], default:"auto"});
-      },
-      validate: (s) => ["auto","cable","air","both"].includes(s) ? s : null,
-      onError: () => say("Бот", "Выберите один из вариантов: auto/cable/air/both.")
+      key:"contract_media",
+      title:"Среда договора",
+      text:"Выберите среду договора.",
+      render: ()=> setInputSelect({label:"Среда договора", choices:["auto","cable","air","both"], value:(A.contract_media ?? "auto")}),
+      validate: (v)=> ["auto","cable","air","both"].includes(v) ? v : null,
+      error:"Выберите один из вариантов: auto/cable/air/both."
     },
     {
-      key: "only_license",
-      ask: () => { say("Бот", "9) Считать только одну лицензию? (Enter = все):"); makeInput("text"); },
-      validate: (s) => s ? s : null
+      key:"only_license",
+      title:"Ограничение лицензией",
+      text:"Если нужно посчитать только одну лицензию — введите её значение. Иначе оставьте пустым.",
+      render: ()=> setInputText({label:"Только лицензия (опционально)", placeholder:"можно пусто"}),
+      validate: (v)=> v.trim() ? v.trim() : null
     },
     {
-      key: "population_override",
-      ask: () => { say("Бот", "Фактическая территория по письму (если отличается от РКН). Введите население (Enter = нет):"); makeInput("text"); },
-      validate: (s) => {
-        if (!s) return null;
-        const v = parseIntMaybe(s);
-        if (!Number.isInteger(v) || v < 0 || v > 2000000000) return null;
-        return v;
+      key:"population_override",
+      title:"Территория по письму",
+      text:"Если фактическая территория отличается от РКН — введите население. Иначе оставьте пустым.",
+      render: ()=> setInputText({label:"Население (опционально)", placeholder:"можно пусто"}),
+      validate: (v)=>{
+        const s = v.trim();
+        if(!s) return null;
+        const n = parseIntMaybe(s);
+        if(!Number.isInteger(n) || n < 0 || n > 2000000000) return null;
+        return n;
       },
-      onError: () => say("Бот", "Введите целое число населения или оставьте пустым.")
+      error:"Введите целое число населения или оставьте пустым."
     },
     {
-      key: "have_past",
-      ask: () => { say("Бот", "10) Есть сумма фактических платежей по проценту за прошлый год? (Y/N, Enter=N)"); makeInput("text"); },
-      validate: (s) => {
-        const b = parseYesNo(s, false);
-        return (b === null) ? null : b;
-      },
-      onError: () => say("Бот", "Ответьте Y или N.")
+      key:"have_past",
+      title:"Платежи за прошлый год",
+      text:"Есть сумма фактических платежей по проценту за прошлый год?",
+      render: ()=> setInputSelect({label:"Есть данные о платежах?", choices:["Нет","Да"], value:"Нет"}),
+      validate: (v)=> (v === "Да"),
     },
     {
-      key: "past_year_percent_paid",
-      ask: () => {
-        if (A.have_past) {
-          say("Бот", "Введите сумму фактических платежей по проценту за прошлый год (без пробелов):");
-          makeInput("text");
-        } else {
-          next();
-        }
+      key:"past_year_percent_paid",
+      title:"Сумма платежей за прошлый год",
+      text:"Введите сумму (число).",
+      when: ()=> A.have_past === true,
+      render: ()=> setInputText({label:"Платежи за прошлый год", placeholder:"например 150000"}),
+      validate: (v)=>{
+        const n = parseFloatMaybe(v);
+        if(!Number.isFinite(n) || n < 0) return null;
+        return n;
       },
-      validate: (s) => {
-        const v = parseFloatMaybe(s);
-        if (!Number.isFinite(v) || v < 0) return null;
-        return v;
+      error:"Введите число ≥ 0."
+    },
+    {
+      key:"_finish",
+      title:"Готово к расчёту",
+      text:"Проверь введённые данные справа. Нажми «Далее» — запущу расчёт и покажу результат.",
+      render: ()=>{
+        inputBox.innerHTML = `<div class="muted">Нажмите «Далее», чтобы выполнить расчёт.</div>`;
       },
-      onError: () => say("Бот", "Введите число >= 0.")
+      validate: ()=> "__finish__"
     },
   ];
 
-  let i = 0;
+  let idx = 0;
+  const history = []; // для "назад" по реальным пройденным шагам
 
-  function next() {
-    i++;
-    if (i >= steps.length) return finish();
-    steps[i].ask();
+  function currentStep(){ return steps[idx]; }
+
+  function visibleStepsCount(){
+    // сколько шагов реально пройдём (динамически), для прогресса
+    // грубо: считаем все, но прогресс будет корректнее через историю
+    return steps.length;
   }
 
-  async function finish() {
-    say("Бот", "Ок, считаю…");
+  function updateProgress(){
+    const stepNo = history.length + 1;
+    stepPill.textContent = `Шаг ${stepNo}`;
+    const pct = Math.min(100, Math.round(((stepNo-1) / (visibleStepsCount()-1)) * 100));
+    progressBar.style.width = pct + "%";
+    progressLabel.textContent = pct + "%";
+    backBtn.disabled = history.length === 0;
+  }
+
+  function render(){
+    showError("");
+    const s = currentStep();
+
+    qTitle.textContent = s.title;
+    qText.textContent = s.text;
+
+    s.render();
+    updateSummary();
+    updateProgress();
+  }
+
+  function findNextIndex(fromIdx){
+    let j = fromIdx + 1;
+    while(j < steps.length){
+      const st = steps[j];
+      if(!st.when || st.when()) return j;
+      j++;
+    }
+    return steps.length - 1;
+  }
+
+  function findPrevIndex(){
+    // возвращаемся по истории, чтобы учитывать пропуски when
+    if(history.length === 0) return idx;
+    return history.pop();
+  }
+
+  async function runCalc(){
+    spin.style.display = "inline-block";
+    nextBtn.disabled = true;
+    backBtn.disabled = true;
+    restartBtn.disabled = true;
+    output.textContent = "Считаю…";
 
     const argv = ["--inn", A.inn];
-    if (A.year != null) argv.push("--year", String(A.year));
-    if (A.revenue_q != null) argv.push("--revenue_q", numToArg(A.revenue_q));
-    if (A.annual_revenue != null) argv.push("--annual_revenue", numToArg(A.annual_revenue));
+
+    if(A.year != null) argv.push("--year", String(A.year));
+    if(A.revenue_q != null) argv.push("--revenue_q", numToArg(A.revenue_q));
+    if(A.annual_revenue != null) argv.push("--annual_revenue", numToArg(A.annual_revenue));
+
     argv.push("--internet_resources", String(A.internet_resources ?? 0));
     argv.push("--contract_quarter", String(A.contract_quarter ?? 1));
     argv.push("--contract_media", String(A.contract_media ?? "auto"));
-    if (A.only_license) argv.push("--only_license", A.only_license);
-    if (A.population_override != null) argv.push("--population_override", String(A.population_override));
-    if (A.past_year_percent_paid != null) argv.push("--past_year_percent_paid", numToArg(A.past_year_percent_paid));
 
-    const res = await fetch("/api/run_argv", {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({argv})
-    });
+    if(A.only_license) argv.push("--only_license", A.only_license);
+    if(A.population_override != null) argv.push("--population_override", String(A.population_override));
+    if(A.past_year_percent_paid != null) argv.push("--past_year_percent_paid", numToArg(A.past_year_percent_paid));
 
-    const data = await res.json().catch(() => ({output:"Ошибка: сервер вернул не-JSON"}));
-    say("Результат", data.output ?? JSON.stringify(data, null, 2));
-
-    makeInput("text", {placeholder:"Если нужно — нажми «Начать заново»"});
+    try{
+      const res = await fetch("/api/run_argv", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({argv})
+      });
+      const data = await res.json();
+      output.textContent = data.output ?? JSON.stringify(data, null, 2);
+    }catch(e){
+      output.textContent = "Ошибка запроса к серверу: " + (e?.message ?? String(e));
+    }finally{
+      spin.style.display = "none";
+      nextBtn.disabled = false;
+      backBtn.disabled = (history.length === 0);
+      restartBtn.disabled = false;
+    }
   }
 
-  function handleSend() {
-    const step = steps[i];
-    const raw = getVal();
+  function setAnswer(key, value){
+    if(key === "_finish") return;
+    A[key] = value;
+  }
 
-    // для select читаем value как есть
-    const el = document.getElementById("userInput");
-    const val = (el && el.tagName === "SELECT") ? el.value : raw;
+  nextBtn.addEventListener("click", async ()=>{
+    showError("");
+    const s = currentStep();
+    const raw = getInputValue();
 
-    const parsed = step.validate ? step.validate(val) : val;
-    if (parsed === null) {
-      step.onError && step.onError();
+    const parsed = s.validate ? s.validate(raw) : raw;
+
+    if(parsed === null){
+      showError(s.error || "Проверьте ввод.");
       return;
     }
 
-    A[step.key] = parsed;
-    say("Ты", val || "(пусто)");
-    next();
-  }
+    if(s.key === "_finish"){
+      await runCalc();
+      return;
+    }
 
-  sendBtn.onclick = handleSend;
-  restartBtn.onclick = () => {
-    chat.textContent = "";
-    i = 0;
-    for (const k in A) delete A[k];
-    steps[0].ask();
-  };
+    setAnswer(s.key, parsed);
+
+    // логика: have_y и have_past — из селектов "Да/Нет" → boolean
+    if(s.key === "have_y") A.have_y = (raw === "Да");
+    if(s.key === "have_past") A.have_past = (raw === "Да");
+
+    history.push(idx);
+    idx = findNextIndex(idx);
+    render();
+  });
+
+  backBtn.addEventListener("click", ()=>{
+    showError("");
+    idx = findPrevIndex();
+    render();
+  });
+
+  restartBtn.addEventListener("click", ()=>{
+    for(const k of Object.keys(A)) delete A[k];
+    idx = 0;
+    history.length = 0;
+    output.textContent = "Результат появится здесь после завершения мастера.";
+    render();
+  });
+
+  copyBtn.addEventListener("click", async ()=>{
+    try{
+      await navigator.clipboard.writeText(output.textContent);
+      copyBtn.textContent = "Скопировано ✓";
+      setTimeout(()=> copyBtn.textContent = "Скопировать", 900);
+    }catch{
+      copyBtn.textContent = "Не удалось";
+      setTimeout(()=> copyBtn.textContent = "Скопировать", 900);
+    }
+  });
 
   // старт
-  steps[0].ask();
+  render();
 </script>
 </body>
 </html>
