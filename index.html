@@ -144,7 +144,7 @@
     <div class="topbar">
       <div class="brand">
         <h1>RAO — Расчёт (веб-форма)</h1>
-        <p>Пошаговый ввод данных. В конце отправляем JSON на сервер и показываем отчёт.</p>
+        <p>Пошаговый ввод данных. Пустое поле <b>или</b> «- / — / нет» = <b>нет данных</b>.</p>
       </div>
       <div class="pill">API: /api/calc</div>
     </div>
@@ -175,7 +175,7 @@
           </div>
 
           <div class="muted" style="margin-top:14px;">
-            Подсказка: можно нажимать <b>Enter</b>, чтобы перейти дальше.
+            Подсказка: <b>Enter</b> = далее. «-» или пусто = пропустить (если поле опциональное).
           </div>
         </div>
       </div>
@@ -235,28 +235,6 @@
     errBox.textContent = msg;
   }
 
-  function parseIntMaybe(s){
-    if(s == null) return null;
-    const t = String(s).trim().replace(/\s+/g,"");
-    if(!t) return null;
-    if(!/^-?\d+$/.test(t)) return NaN;
-    return parseInt(t,10);
-  }
-
-  function parseFloatMaybe(s){
-    if(s == null) return null;
-    const t = String(s).trim().replace(/\s+/g,"").replace(",",".");
-    if(!t) return null;
-    const v = Number(t);
-    return Number.isFinite(v) ? v : NaN;
-  }
-
-  function numToArg(v){
-    if(v == null) return null;
-    if(Number.isInteger(v)) return String(v);
-    return String(v);
-  }
-
   function escapeHtml(s){
     return String(s)
       .replaceAll("&","&amp;")
@@ -264,6 +242,26 @@
       .replaceAll(">","&gt;")
       .replaceAll('"',"&quot;")
       .replaceAll("'","&#039;");
+  }
+
+  // === Главное исправление: "пусто" / "-" / "—" / "нет" считаем как null ===
+  function isEmptyOrDash(v){
+    const s = String(v ?? "").trim();
+    return s === "" || s === "-" || s === "—" || s.toLowerCase() === "нет";
+  }
+
+  function parseIntMaybe(s){
+    if(isEmptyOrDash(s)) return null;
+    const t = String(s).trim().replace(/\s+/g,"");
+    if(!/^-?\d+$/.test(t)) return NaN;
+    return parseInt(t,10);
+  }
+
+  function parseFloatMaybe(s){
+    if(isEmptyOrDash(s)) return null;
+    const t = String(s).trim().replace(/\s+/g,"").replace(",",".");
+    const v = Number(t);
+    return Number.isFinite(v) ? v : NaN;
   }
 
   function setInputText({label, placeholder="", value=""}){
@@ -299,15 +297,17 @@
   }
 
   function updateSummary(){
-    const baseLabel = (A.base_type === "revenue_q") ? "Доход за квартал" :
-                      (A.base_type === "annual_revenue") ? "Годовая выручка" :
-                      (A.base_type === "expenses_q") ? "Расходы за квартал" :
-                      "Финансовая база";
+    const baseLabel =
+      (A.base_type === "revenue_q") ? "Доход за квартал" :
+      (A.base_type === "annual_revenue") ? "Годовая выручка" :
+      (A.base_type === "expenses_q") ? "Расходы за квартал" :
+      "Финансовая база";
 
-    const baseValue = (A.base_type === "revenue_q") ? A.revenue_q :
-                      (A.base_type === "annual_revenue") ? A.annual_revenue :
-                      (A.base_type === "expenses_q") ? A.expenses_q :
-                      "не указана";
+    const baseValue =
+      (A.base_type === "revenue_q") ? A.revenue_q :
+      (A.base_type === "annual_revenue") ? A.annual_revenue :
+      (A.base_type === "expenses_q") ? A.expenses_q :
+      "не указана";
 
     const items = [
       ["ИНН", A.inn],
@@ -348,16 +348,15 @@
     {
       key:"year",
       title:"Год расчёта",
-      text:"Введите год (например 2024). Можно оставить пустым.",
-      render: ()=> setInputText({label:"Год", placeholder:"например 2024 (можно пусто)"}),
+      text:"Введите год (например 2024). Можно оставить пустым или поставить «-».",
+      render: ()=> setInputText({label:"Год", placeholder:"например 2024 (пусто или - = нет данных)"}),
       validate: (v)=>{
-        const s = v.trim();
-        if(!s) return null;
-        const n = parseIntMaybe(s);
+        if(isEmptyOrDash(v)) return null;
+        const n = parseIntMaybe(v);
         if(!Number.isInteger(n) || n < 1900 || n > 2100) return null;
         return n;
       },
-      error:"Введите год числом от 1900 до 2100, или оставьте поле пустым."
+      error:"Введите год числом от 1900 до 2100, или оставьте пустым/«-»."
     },
     {
       key:"base_type",
@@ -385,41 +384,44 @@
     {
       key:"revenue_q",
       title:"Доход за квартал",
-      text:"Введите сумму дохода за квартал (число ≥ 0).",
+      text:"Введите сумму дохода за квартал (число ≥ 0). Пусто/«-» = нет данных.",
       when: ()=> A.base_type === "revenue_q",
-      render: ()=> setInputText({label:"Доход за квартал", placeholder:"например 1250000"}),
+      render: ()=> setInputText({label:"Доход за квартал", placeholder:"например 1250000 (пусто или - = нет данных)"}),
       validate: (v)=>{
         const n = parseFloatMaybe(v);
+        if(n === null) return null;
         if(!Number.isFinite(n) || n < 0) return null;
         return n;
       },
-      error:"Введите число ≥ 0."
+      error:"Введите число ≥ 0, или оставьте пустым/«-»."
     },
     {
       key:"annual_revenue",
       title:"Годовая выручка",
-      text:"Введите сумму годовой выручки/дохода (число ≥ 0).",
+      text:"Введите сумму годовой выручки/дохода (число ≥ 0). Пусто/«-» = нет данных.",
       when: ()=> A.base_type === "annual_revenue",
-      render: ()=> setInputText({label:"Годовая выручка", placeholder:"например 33986000"}),
+      render: ()=> setInputText({label:"Годовая выручка", placeholder:"например 33986000 (пусто или - = нет данных)"}),
       validate: (v)=>{
         const n = parseFloatMaybe(v);
+        if(n === null) return null;
         if(!Number.isFinite(n) || n < 0) return null;
         return n;
       },
-      error:"Введите число ≥ 0."
+      error:"Введите число ≥ 0, или оставьте пустым/«-»."
     },
     {
       key:"expenses_q",
       title:"Расходы за квартал",
-      text:"Введите сумму расходов за квартал (число ≥ 0). Используется только если выбрана база «расходы».",
+      text:"Введите сумму расходов за квартал (число ≥ 0). Используется только если выбрана база «расходы». Пусто/«-» = нет данных.",
       when: ()=> A.base_type === "expenses_q",
-      render: ()=> setInputText({label:"Расходы за квартал", placeholder:"например 1234567"}),
+      render: ()=> setInputText({label:"Расходы за квартал", placeholder:"например 1234567 (пусто или - = нет данных)"}),
       validate: (v)=>{
         const n = parseFloatMaybe(v);
+        if(n === null) return null;
         if(!Number.isFinite(n) || n < 0) return null;
         return n;
       },
-      error:"Введите число ≥ 0."
+      error:"Введите число ≥ 0, или оставьте пустым/«-»."
     },
     {
       key:"internet_resources",
@@ -427,6 +429,7 @@
       text:"Количество интернет-ресурсов со стримингом. Если нет — 0.",
       render: ()=> setInputText({label:"Интернет-ресурсы", placeholder:"0", value: (A.internet_resources ?? 0)}),
       validate: (v)=>{
+        // для этого поля пусто/«-» не разрешаем — пусть будет 0
         const n = parseIntMaybe(v);
         if(!Number.isInteger(n) || n < 0 || n > 1000) return null;
         return n;
@@ -459,23 +462,22 @@
     {
       key:"only_license",
       title:"Ограничение лицензией",
-      text:"Если нужно посчитать только одну лицензию — введите её ID. Иначе оставьте пустым.",
-      render: ()=> setInputText({label:"Только лицензия (опционально)", placeholder:"можно пусто"}),
-      validate: (v)=> v.trim() ? v.trim() : null
+      text:"Если нужно посчитать только одну лицензию — введите её ID. Иначе оставьте пустым или поставьте «-».",
+      render: ()=> setInputText({label:"Только лицензия (опционально)", placeholder:"ID лицензии или пусто / -"}),
+      validate: (v)=> isEmptyOrDash(v) ? null : v.trim()
     },
     {
       key:"population_override",
       title:"Территория по письму",
-      text:"Если фактическая территория отличается от РКН — введите население. Иначе пусто.",
-      render: ()=> setInputText({label:"Население (опционально)", placeholder:"можно пусто"}),
+      text:"Если фактическая территория отличается от РКН — введите население. Иначе оставьте пустым или поставьте «-».",
+      render: ()=> setInputText({label:"Население (опционально)", placeholder:"например 978500 (пусто / - = нет данных)"}),
       validate: (v)=>{
-        const s = v.trim();
-        if(!s) return null;
-        const n = parseIntMaybe(s);
+        if(isEmptyOrDash(v)) return null;
+        const n = parseIntMaybe(v);
         if(!Number.isInteger(n) || n < 0 || n > 2000000000) return null;
         return n;
       },
-      error:"Введите целое число населения или оставьте пустым."
+      error:"Введите целое число населения, или оставьте пустым/«-»."
     },
     {
       key:"have_past",
@@ -487,15 +489,16 @@
     {
       key:"past_year_percent_paid",
       title:"Сумма платежей за прошлый год",
-      text:"Введите сумму (число ≥ 0).",
+      text:"Введите сумму (число ≥ 0). Пусто/«-» = нет данных.",
       when: ()=> A.have_past === true,
-      render: ()=> setInputText({label:"Платежи за прошлый год", placeholder:"например 150000"}),
+      render: ()=> setInputText({label:"Платежи за прошлый год", placeholder:"например 150000 (пусто / - = нет данных)"}),
       validate: (v)=>{
         const n = parseFloatMaybe(v);
+        if(n === null) return null;
         if(!Number.isFinite(n) || n < 0) return null;
         return n;
       },
-      error:"Введите число ≥ 0."
+      error:"Введите число ≥ 0, или оставьте пустым/«-»."
     },
     {
       key:"_finish",
@@ -567,15 +570,19 @@
     const payload = {
       inn: A.inn,
       year: (A.year ?? null),
+
       annual_revenue: null,
       revenue_q: null,
       expenses_q: null,
+
       internet_resources: (A.internet_resources ?? 0),
       contract_quarter: (A.contract_quarter ?? 1),
       contract_media: (A.contract_media ?? "auto"),
+
       only_license: (A.only_license ?? null),
       population_override: (A.population_override ?? null),
       past_year_percent_paid: (A.past_year_percent_paid ?? null),
+
       small_income_mode: (A.small_income_mode ?? "auto"),
     };
 
@@ -615,8 +622,17 @@
     const raw = getInputValue();
 
     const parsed = s.validate ? s.validate(raw) : raw;
-    if(parsed === null){
+    if(parsed === null && s.key === "inn"){
       showError(s.error || "Проверьте ввод.");
+      return;
+    }
+    if(parsed === null && (s.key === "internet_resources")){
+      showError(s.error || "Проверьте ввод.");
+      return;
+    }
+    if(parsed === null && s.key !== "_finish" && s.error && !isEmptyOrDash(raw)){
+      // если не пусто/не дефис — показываем ошибку
+      showError(s.error);
       return;
     }
 
