@@ -1,3 +1,4 @@
+
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
@@ -7,7 +8,6 @@
     :root{
       --bg:#0b1220;
       --card:#0f1a2d;
-      --card2:#0c1628;
       --text:#e8eefc;
       --muted:#a8b4d6;
       --line:rgba(255,255,255,.10);
@@ -28,21 +28,12 @@
       color:var(--text);
     }
     .wrap{ max-width: 1060px; margin: 28px auto; padding: 0 16px; }
-    .topbar{
-      display:flex; gap:16px; align-items:flex-start; justify-content:space-between;
-      margin-bottom: 16px;
-    }
+    .topbar{ display:flex; gap:16px; align-items:flex-start; justify-content:space-between; margin-bottom: 16px; }
     .brand{ display:flex; flex-direction:column; gap:6px; }
     .brand h1{ font-size: 20px; margin:0; letter-spacing:.2px; }
     .brand p{ margin:0; color:var(--muted); font-size: 14px; line-height: 1.35; }
-
-    .grid{
-      display:grid;
-      grid-template-columns: 1.1fr .9fr;
-      gap: 16px;
-    }
+    .grid{ display:grid; grid-template-columns: 1.1fr .9fr; gap: 16px; }
     @media (max-width: 920px){ .grid{ grid-template-columns:1fr; } }
-
     .card{
       background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
       border: 1px solid var(--line);
@@ -50,51 +41,19 @@
       box-shadow: var(--shadow);
       overflow:hidden;
     }
-    .card .head{
-      padding: 16px 16px 12px 16px;
-      border-bottom: 1px solid var(--line);
-      background: rgba(0,0,0,.15);
-    }
+    .card .head{ padding: 16px 16px 12px 16px; border-bottom: 1px solid var(--line); background: rgba(0,0,0,.15); }
     .card .body{ padding: 16px; }
 
-    .progressRow{
-      display:flex; align-items:center; justify-content:space-between; gap:12px;
-      margin-top: 10px;
-    }
-    .progress{
-      flex:1;
-      height: 10px;
-      background: rgba(255,255,255,.08);
-      border-radius: 999px;
-      overflow:hidden;
-      border: 1px solid rgba(255,255,255,.06);
-    }
-    .progress > div{
-      height:100%;
-      width:0%;
-      background: linear-gradient(90deg, var(--accent), var(--accent2));
-      border-radius: 999px;
-      transition: width .25s ease;
-    }
-    .progressLabel{
-      font-size: 12px; color:var(--muted); white-space:nowrap;
-    }
+    .progressRow{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top: 10px; }
+    .progress{ flex:1; height: 10px; background: rgba(255,255,255,.08); border-radius: 999px; overflow:hidden; border: 1px solid rgba(255,255,255,.06); }
+    .progress > div{ height:100%; width:0%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 999px; transition: width .25s ease; }
+    .progressLabel{ font-size: 12px; color:var(--muted); white-space:nowrap; }
 
     .questionTitle{ font-size: 16px; margin: 0 0 8px 0; }
-    .questionText{
-      margin: 0 0 14px 0;
-      color: var(--muted);
-      font-size: 14px;
-      line-height: 1.45;
-    }
+    .questionText{ margin: 0 0 14px 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
 
-    label{
-      display:block;
-      font-size: 13px;
-      color: var(--muted);
-      margin-bottom: 8px;
-    }
-    input, select, textarea{
+    label{ display:block; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+    input, select{
       width:100%;
       padding: 12px 12px;
       background: rgba(255,255,255,.06);
@@ -104,18 +63,8 @@
       outline:none;
       transition: border-color .15s ease, box-shadow .15s ease;
     }
-    input::placeholder, textarea::placeholder{ color: rgba(168,180,214,.65); }
-    input:focus, select:focus, textarea:focus{
-      border-color: rgba(79,140,255,.55);
-      box-shadow: 0 0 0 4px rgba(79,140,255,.12);
-    }
-
-    .help{
-      margin-top: 8px;
-      font-size: 12px;
-      color: rgba(168,180,214,.85);
-      line-height: 1.4;
-    }
+    input::placeholder{ color: rgba(168,180,214,.65); }
+    input:focus, select:focus{ border-color: rgba(79,140,255,.55); box-shadow: 0 0 0 4px rgba(79,140,255,.12); }
 
     .error{
       margin-top: 10px;
@@ -127,11 +76,7 @@
       font-size: 13px;
       display:none;
     }
-
-    .actions{
-      display:flex; gap:10px; flex-wrap:wrap;
-      margin-top: 14px;
-    }
+    .actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top: 14px; }
     .btn{
       appearance:none; border: 1px solid rgba(255,255,255,.12);
       background: rgba(255,255,255,.06);
@@ -148,19 +93,9 @@
     .btn:hover{ background: rgba(255,255,255,.09); }
     .btn:active{ transform: translateY(1px); }
     .btn[disabled]{ opacity:.5; cursor:not-allowed; }
-
-    .btnPrimary{
-      background: linear-gradient(90deg, rgba(79,140,255,.95), rgba(45,212,191,.70));
-      border-color: rgba(255,255,255,.10);
-      color: #08101f;
-    }
-    .btnPrimary:hover{ filter: brightness(1.02); }
+    .btnPrimary{ background: linear-gradient(90deg, rgba(79,140,255,.95), rgba(45,212,191,.70)); border-color: rgba(255,255,255,.10); color: #08101f; }
     .btnGhost{ background: transparent; }
-    .btnDanger{
-      border-color: rgba(255,90,107,.28);
-      background: rgba(255,90,107,.10);
-      color:#ffd2d8;
-    }
+    .btnDanger{ border-color: rgba(255,90,107,.28); background: rgba(255,90,107,.10); color:#ffd2d8; }
 
     .pill{
       display:inline-flex; align-items:center;
@@ -173,25 +108,10 @@
       gap: 8px;
     }
 
-    .kv{
-      display:grid;
-      grid-template-columns: 1fr;
-      gap:10px;
-    }
-    .kv .item{
-      padding: 12px;
-      border-radius: 14px;
-      border: 1px solid var(--line);
-      background: rgba(0,0,0,.18);
-    }
-    .kv .k{
-      font-size: 12px; color: var(--muted);
-      margin-bottom: 4px;
-    }
-    .kv .v{
-      font-size: 14px; color: var(--text);
-      word-break: break-word;
-    }
+    .kv{ display:grid; grid-template-columns: 1fr; gap:10px; }
+    .kv .item{ padding: 12px; border-radius: 14px; border: 1px solid var(--line); background: rgba(0,0,0,.18); }
+    .kv .k{ font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .kv .v{ font-size: 14px; color: var(--text); word-break: break-word; }
 
     pre{
       margin:0;
@@ -205,10 +125,7 @@
       font-size: 13px;
       line-height: 1.35;
     }
-    .row2{
-      display:flex; align-items:center; justify-content:space-between; gap:10px;
-      margin-bottom: 10px;
-    }
+    .row2{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom: 10px; }
     .spinner{
       width: 14px; height: 14px;
       border: 2px solid rgba(255,255,255,.25);
@@ -229,20 +146,16 @@
         <h1>RAO — Расчёт (веб-форма)</h1>
         <p>Пошаговый ввод данных. В конце отправляем JSON на сервер и показываем отчёт.</p>
       </div>
-      <div class="pill" id="modePill">API: /api/calc</div>
+      <div class="pill">API: /api/calc</div>
     </div>
 
     <div class="grid">
-      <!-- LEFT -->
       <div class="card">
         <div class="head">
           <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-            <div>
-              <div class="pill" id="stepPill">Шаг 1</div>
-            </div>
+            <div class="pill" id="stepPill">Шаг 1</div>
             <div class="progressLabel" id="progressLabel">0%</div>
           </div>
-
           <div class="progressRow">
             <div class="progress"><div id="progressBar"></div></div>
           </div>
@@ -261,19 +174,18 @@
             <button class="btn btnDanger" id="restartBtn">Начать заново</button>
           </div>
 
-          <div class="help" style="margin-top:14px;">
+          <div class="muted" style="margin-top:14px;">
             Подсказка: можно нажимать <b>Enter</b>, чтобы перейти дальше.
           </div>
         </div>
       </div>
 
-      <!-- RIGHT -->
       <div style="display:flex; flex-direction:column; gap:16px;">
         <div class="card">
           <div class="head">
             <div class="row2">
               <div class="pill">Введённые данные</div>
-              <div class="muted" id="summaryHint">Заполняй шаги слева</div>
+              <div class="muted">Заполняй шаги слева</div>
             </div>
           </div>
           <div class="body">
@@ -300,10 +212,8 @@
   </div>
 
 <script>
-  // Ответы
   const A = {};
 
-  // UI
   const qTitle = document.getElementById("qTitle");
   const qText  = document.getElementById("qText");
   const inputBox = document.getElementById("inputBox");
@@ -339,6 +249,12 @@
     if(!t) return null;
     const v = Number(t);
     return Number.isFinite(v) ? v : NaN;
+  }
+
+  function numToArg(v){
+    if(v == null) return null;
+    if(Number.isInteger(v)) return String(v);
+    return String(v);
   }
 
   function escapeHtml(s){
@@ -386,12 +302,12 @@
     const baseLabel = (A.base_type === "revenue_q") ? "Доход за квартал" :
                       (A.base_type === "annual_revenue") ? "Годовая выручка" :
                       (A.base_type === "expenses_q") ? "Расходы за квартал" :
-                      (A.base_type === "none") ? "Финансовая база" : "Финансовая база";
+                      "Финансовая база";
 
     const baseValue = (A.base_type === "revenue_q") ? A.revenue_q :
                       (A.base_type === "annual_revenue") ? A.annual_revenue :
                       (A.base_type === "expenses_q") ? A.expenses_q :
-                      (A.base_type === "none") ? "не указана" : "";
+                      "не указана";
 
     const items = [
       ["ИНН", A.inn],
@@ -420,7 +336,6 @@
     }
   }
 
-  // Шаги
   const steps = [
     {
       key:"inn",
@@ -447,7 +362,7 @@
     {
       key:"base_type",
       title:"Финансовая база",
-      text:"Выберите, от чего считаем процент: доходы за квартал / годовая выручка / расходы за квартал (ветка госструктуры).",
+      text:"Выберите, от чего считаем процент: доходы за квартал / годовая выручка / расходы за квартал (ветка госструктуры) / нет данных.",
       render: ()=> setInputSelect({
         label:"Тип базы",
         choices:[
@@ -496,9 +411,9 @@
     {
       key:"expenses_q",
       title:"Расходы за квартал",
-      text:"Введите сумму расходов за квартал (если 100% госструктура / нет доходов).",
+      text:"Введите сумму расходов за квартал (число ≥ 0). Используется только если выбрана база «расходы».",
       when: ()=> A.base_type === "expenses_q",
-      render: ()=> setInputText({label:"Расходы за квартал", placeholder:"например 800000"}),
+      render: ()=> setInputText({label:"Расходы за квартал", placeholder:"например 1234567"}),
       validate: (v)=>{
         const n = parseFloatMaybe(v);
         if(!Number.isFinite(n) || n < 0) return null;
@@ -537,11 +452,7 @@
       key:"small_income_mode",
       title:"Ветка малого дохода",
       text:"Оставить авто-режим или принудительно включить/выключить ветку малого дохода.",
-      render: ()=> setInputSelect({
-        label:"Режим",
-        choices:["auto","force_on","force_off"],
-        value:(A.small_income_mode ?? "auto")
-      }),
+      render: ()=> setInputSelect({label:"Режим", choices:["auto","force_on","force_off"], value:(A.small_income_mode ?? "auto")}),
       validate: (v)=> ["auto","force_on","force_off"].includes(v) ? v : null,
       error:"Выберите: auto / force_on / force_off."
     },
@@ -590,9 +501,7 @@
       key:"_finish",
       title:"Готово к расчёту",
       text:"Проверь данные справа. Нажми «Далее» — запущу расчёт и покажу результат.",
-      render: ()=>{
-        inputBox.innerHTML = `<div class="muted">Нажмите «Далее», чтобы выполнить расчёт.</div>`;
-      },
+      render: ()=> { inputBox.innerHTML = `<div class="muted">Нажмите «Далее», чтобы выполнить расчёт.</div>`; },
       validate: ()=> "__finish__"
     },
   ];
@@ -601,11 +510,7 @@
   const history = [];
 
   function currentStep(){ return steps[idx]; }
-
-  function visibleStepsCount(){
-    // для прогресса берём общий объём (не идеально), но ок визуально
-    return steps.length;
-  }
+  function visibleStepsCount(){ return steps.length; }
 
   function updateProgress(){
     const stepNo = history.length + 1;
@@ -659,24 +564,18 @@
     restartBtn.disabled = true;
     output.textContent = "Считаю…";
 
-    // собрать payload под /api/calc
     const payload = {
       inn: A.inn,
       year: (A.year ?? null),
-
       annual_revenue: null,
       revenue_q: null,
       expenses_q: null,
-
       internet_resources: (A.internet_resources ?? 0),
       contract_quarter: (A.contract_quarter ?? 1),
       contract_media: (A.contract_media ?? "auto"),
-
       only_license: (A.only_license ?? null),
       population_override: (A.population_override ?? null),
       past_year_percent_paid: (A.past_year_percent_paid ?? null),
-
-      // управление веткой малого дохода
       small_income_mode: (A.small_income_mode ?? "auto"),
     };
 
@@ -691,14 +590,14 @@
         body: JSON.stringify(payload)
       });
 
-      const data = await res.json();
-
-      const txt =
-        data.report_text ??
-        data.output ??
-        (typeof data === "string" ? data : JSON.stringify(data, null, 2));
-
-      output.textContent = txt;
+      let text;
+      try{
+        const data = await res.json();
+        text = data.output ?? JSON.stringify(data, null, 2);
+      }catch{
+        text = await res.text();
+      }
+      output.textContent = text;
 
     }catch(e){
       output.textContent = "Ошибка запроса к серверу: " + (e?.message ?? String(e));
@@ -716,7 +615,6 @@
     const raw = getInputValue();
 
     const parsed = s.validate ? s.validate(raw) : raw;
-
     if(parsed === null){
       showError(s.error || "Проверьте ввод.");
       return;
@@ -727,7 +625,6 @@
       return;
     }
 
-    // спец-логика для base_type: при смене типа базы очищаем поля
     if(s.key === "base_type"){
       clearFinancialFields();
       setAnswer(s.key, parsed);
@@ -735,7 +632,6 @@
       setAnswer(s.key, parsed);
     }
 
-    // have_past — boolean из селекта
     if(s.key === "have_past") A.have_past = (raw === "Да");
 
     history.push(idx);
