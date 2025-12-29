@@ -1,11 +1,21 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Any
 
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
+
+# --- Pydantic v1/v2 совместимость для валидаторов ---
+try:
+    # Pydantic v2
+    from pydantic import field_validator  # type: ignore
+    _PYDANTIC_V2 = True
+except Exception:
+    # Pydantic v1
+    from pydantic import validator as field_validator  # type: ignore
+    _PYDANTIC_V2 = False
 
 from rao import run_calc_capture
 
@@ -15,11 +25,53 @@ INDEX_HTML = BASE_DIR / "index.html"
 app = FastAPI()
 
 
+DASH_TOKENS = {"", "-", "—", "–", "нет"}
+
+
+def _is_dash(v: Any) -> bool:
+    if v is None:
+        return True
+    if isinstance(v, str):
+        s = v.strip()
+        return s.lower() in DASH_TOKENS
+    return False
+
+
+def _to_none_or_str(v: Any) -> Optional[str]:
+    if _is_dash(v):
+        return None
+    return str(v).strip()
+
+
+def _to_none_or_int(v: Any) -> Optional[int]:
+    if _is_dash(v):
+        return None
+    if isinstance(v, int):
+        return v
+    if isinstance(v, float) and v.is_integer():
+        return int(v)
+    s = str(v).strip().replace(" ", "")
+    if s == "":
+        return None
+    return int(s)
+
+
+def _to_none_or_float(v: Any) -> Optional[float]:
+    if _is_dash(v):
+        return None
+    if isinstance(v, (int, float)):
+        return float(v)
+    s = str(v).strip().replace(" ", "").replace(",", ".")
+    if s == "":
+        return None
+    return float(s)
+
+
 class CalcRequest(BaseModel):
     inn: str = Field(..., description="ИНН 10 или 12 цифр")
     year: Optional[int] = Field(None, ge=1900, le=2100)
 
-    # финансовая база (ровно одно обычно, но можно оставить пусто => будет needs)
+    # финансовая база
     annual_revenue: Optional[float] = Field(None, ge=0)
     revenue_q: Optional[float] = Field(None, ge=0)
     expenses_q: Optional[float] = Field(None, ge=0)
@@ -32,8 +84,69 @@ class CalcRequest(BaseModel):
     population_override: Optional[int] = Field(None, ge=0, le=2_000_000_000)
     past_year_percent_paid: Optional[float] = Field(None, ge=0)
 
-    # управление веткой малого дохода
     small_income_mode: Literal["auto", "force_on", "force_off"] = "auto"
+
+    # ---- валидаторы ----
+    if _PYDANTIC_V2:
+        @field_validator("inn", mode="before")
+        @classmethod
+        def _v_inn(cls, v: Any) -> str:
+            s = _to_none_or_str(v)
+            if not s:
+                raise ValueError("ИНН обязателен")
+            s = s.replace(" ", "")
+            if not s.isdigit() or len(s) not in (10, 12):
+                raise ValueError("ИНН должен состоять из 10 или 12 цифр")
+            return s
+
+        @field_validator(
+            "year",
+            "population_override",
+            mode="before",
+        )
+        @classmethod
+        def _v_ints(cls, v: Any) -> Optional[int]:
+            return _to_none_or_int(v)
+
+        @field_validator(
+            "annual_revenue",
+            "revenue_q",
+            "expenses_q",
+            "past_year_percent_paid",
+            mode="before",
+        )
+        @classmethod
+        def _v_floats(cls, v: Any) -> Optional[float]:
+            return _to_none_or_float(v)
+
+        @field_validator("only_license", mode="before")
+        @classmethod
+        def _v_only_license(cls, v: Any) -> Optional[str]:
+            return _to_none_or_str(v)
+
+    else:
+        # Pydantic v1
+        @field_validator("inn", pre=True)
+        def _v1_inn(cls, v: Any) -> str:
+            s = _to_none_or_str(v)
+            if not s:
+                raise ValueError("ИНН обязателен")
+            s = s.replace(" ", "")
+            if not s.isdigit() or len(s) not in (10, 12):
+                raise ValueError("ИНН должен состоять из 10 или 12 цифр")
+            return s
+
+        @field_validator("year", "population_override", pre=True)
+        def _v1_ints(cls, v: Any) -> Optional[int]:
+            return _to_none_or_int(v)
+
+        @field_validator("annual_revenue", "revenue_q", "expenses_q", "past_year_percent_paid", pre=True)
+        def _v1_floats(cls, v: Any) -> Optional[float]:
+            return _to_none_or_float(v)
+
+        @field_validator("only_license", pre=True)
+        def _v1_only_license(cls, v: Any) -> Optional[str]:
+            return _to_none_or_str(v)
 
 
 class RunArgvRequest(BaseModel):
@@ -47,7 +160,7 @@ def home():
             "<h1>index.html не найден</h1><p>Положи index.html рядом с app.py</p>",
             status_code=500,
         )
-    return INDEX_HTML.read_text(encoding="utf-8")
+    return HTMLResponse(INDEX_HTML.read_text(encoding="utf-8"))
 
 
 @app.post("/api/calc")
@@ -56,7 +169,7 @@ def api_calc(req: CalcRequest):
     Основной веб-эндпоинт: принимает JSON (как форма на сайте),
     собирает argv и запускает расчёт в неинтерактивном режиме.
     """
-    argv: List[str] = ["--inn", str(req.inn).strip()]
+    argv: List[str] = ["--inn", req.inn.strip()]
 
     if req.year is not None:
         argv += ["--year", str(req.year)]
@@ -73,7 +186,7 @@ def api_calc(req: CalcRequest):
     argv += ["--contract_media", str(req.contract_media)]
 
     if req.only_license:
-        argv += ["--only_license", str(req.only_license).strip()]
+        argv += ["--only_license", req.only_license.strip()]
 
     if req.population_override is not None:
         argv += ["--population_override", str(int(req.population_override))]
@@ -86,7 +199,7 @@ def api_calc(req: CalcRequest):
     elif req.small_income_mode == "force_off":
         argv += ["--no_small_income"]
 
-    # ВАЖНО: для сайта всегда запрещаем интерактив
+    # Для сайта всегда запрещаем интерактив
     if "--non_interactive" not in argv:
         argv.append("--non_interactive")
 
@@ -105,7 +218,7 @@ def api_run_argv(req: RunArgvRequest):
     if "--wizard" in argv:
         return JSONResponse(
             status_code=400,
-            content={"exit_code": 400, "output": "Во веб-версии нельзя --wizard."},
+            content={"exit_code": 400, "output": "В веб-версии нельзя --wizard."},
         )
 
     if "--non_interactive" not in argv:
