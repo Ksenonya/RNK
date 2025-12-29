@@ -1,14 +1,15 @@
-# rao.py
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
 import argparse
+import io
 import math
 import re
+from contextlib import redirect_stdout
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote
-from typing import Dict, List, Optional, Tuple, Any
 
 import openpyxl
 import pandas as pd
@@ -18,7 +19,7 @@ import pandas as pd
 
 class Progress:
     def __init__(self) -> None:
-        self.total = 5
+        self.total = 10
         self.step = 0
 
     def tick(self, msg: str) -> None:
@@ -86,6 +87,7 @@ def parse_population(v: Any) -> Tuple[Optional[int], List[str]]:
     num = num.replace(" ", "").replace(",", ".")
     if not num:
         return None, notes
+
     try:
         f = float(num)
     except ValueError:
@@ -271,7 +273,6 @@ def iter_rkn_rows(rkn_xlsx: Path) -> Tuple[List[str], Any]:
     header_raw = list(next(ws.iter_rows(min_row=1, max_row=1, values_only=True)))
     while header_raw and (header_raw[-1] is None or str(header_raw[-1]).strip() == ""):
         header_raw.pop()
-
     header = header_raw
     max_col = len(header)
 
@@ -289,10 +290,18 @@ def load_licenses_by_inn(rkn_xlsx: Path, inn: str, vars_xlsx: Path) -> Tuple[Lis
     header, it = iter_rkn_rows(rkn_xlsx)
     idx = {h: i for i, h in enumerate(header)}
 
+    required = [
+        "ns1:inn", "ns1:org_name", "ns1:license_num", "ns1:sreda", "ns1:population",
+        "ns1:smi_name14", "ns1:smi_name", "ns1:brcst_direction", "ns1:percentage", "ns1:brcst_time"
+    ]
+    missing = [c for c in required if c not in idx]
+    if missing:
+        notes.append(f"В таблице РКН не найдены ожидаемые колонки: {missing}. Скрипт будет работать частично.")
+
     category_rate = build_category_rate_map(vars_xlsx)
     try:
         topics_map = pd.read_excel(vars_xlsx, sheet_name="Тематики по категориям")
-        if topics_map is None or topics_map.empty:
+        if topics_map.dropna(how="all").empty:
             topics_map = pd.DataFrame()
     except Exception:
         topics_map = pd.DataFrame()
@@ -301,7 +310,9 @@ def load_licenses_by_inn(rkn_xlsx: Path, inn: str, vars_xlsx: Path) -> Tuple[Lis
 
     def get(row, col):
         j = idx.get(col)
-        if j is None or j >= len(row):
+        if j is None:
+            return None
+        if j >= len(row):
             return None
         return row[j]
 
@@ -326,21 +337,30 @@ def load_licenses_by_inn(rkn_xlsx: Path, inn: str, vars_xlsx: Path) -> Tuple[Lis
         if not lic_id:
             continue
 
-        lic = by_license.setdefault(
-            lic_id,
-            {"org_name": org_name, "inn": inn, "sreda": sreda, "pop_values": [], "pop_notes": [], "channels": {}},
-        )
+        lic = by_license.setdefault(lic_id, {
+            "org_name": org_name,
+            "inn": inn,
+            "sreda": sreda,
+            "pop_values": [],
+            "pop_notes": [],
+            "channels": {}
+        })
 
         pop_int, pop_notes = parse_population(pop_raw)
         if pop_int is not None:
             lic["pop_values"].append(pop_int)
         lic["pop_notes"].extend(pop_notes)
 
-        ch = lic["channels"].setdefault(channel_name, {"hours": None, "topics": []})
+        ch = lic["channels"].setdefault(channel_name, {
+            "hours": None,
+            "hours_notes": [],
+            "topics": []
+        })
 
-        hrs, _hrs_notes = parse_hours_week(brcst_time, get(row, "ns1:smi_name"))
+        hrs, hrs_notes = parse_hours_week(brcst_time, get(row, "ns1:smi_name"))
         if hrs is not None:
             ch["hours"] = hrs
+        ch["hours_notes"].extend(hrs_notes)
 
         if direction:
             share = None
@@ -370,12 +390,14 @@ def load_licenses_by_inn(rkn_xlsx: Path, inn: str, vars_xlsx: Path) -> Tuple[Lis
             population_total=pop_total,
             population_notes=data.get("pop_notes", []),
             rkn_url=build_rkn_url(lic_id),
-            channels=[],
+            channels=[]
         )
-
         for ch_name, ch_data in data["channels"].items():
-            lic_obj.channels.append(Channel(name=ch_name, hours_week=ch_data.get("hours"), topics=ch_data.get("topics", [])))
-
+            lic_obj.channels.append(Channel(
+                name=ch_name,
+                hours_week=ch_data.get("hours"),
+                topics=ch_data.get("topics", [])
+            ))
         licenses.append(lic_obj)
 
     if not licenses:
@@ -393,21 +415,26 @@ def compute_license_rate(lic: License) -> Tuple[float, Dict[str, Any]]:
     det: Dict[str, Any] = {"channels": []}
     num = 0.0
     den = 0.0
+
     for ch in lic.channels:
         ch_rate, ch_notes = ch.avg_rate()
         hrs = ch.hours_week if ch.hours_week is not None else 168.0
-        det["channels"].append(
-            {
-                "channel": ch.name,
-                "hours": hrs,
-                "channel_rate_raw": ch_rate,
-                "channel_rate": round_rate(ch_rate),
-                "notes": ch_notes,
-                "topics": [{"topic": t.topic_raw, "share_pct": t.share_pct, "rate_pct": t.rate_pct, "note": t.note} for t in ch.topics],
-            }
-        )
+
+        det["channels"].append({
+            "channel": ch.name,
+            "hours": hrs,
+            "channel_rate_raw": ch_rate,
+            "channel_rate": round_rate(ch_rate),
+            "notes": ch_notes,
+            "topics": [
+                {"topic": t.topic_raw, "share_pct": t.share_pct, "rate_pct": t.rate_pct, "note": t.note}
+                for t in ch.topics
+            ]
+        })
+
         num += ch_rate * hrs
         den += hrs
+
     if den == 0:
         return 2.5, {"warning": "Не удалось рассчитать ставку по ВЛ (нет часов/каналов). Применена 2,5%."}
     return round_rate(num / den), det
@@ -417,18 +444,27 @@ def compute_contract_rate(licenses: List[License]) -> Tuple[float, Dict[str, Any
     details: Dict[str, Any] = {"licenses": []}
     num = 0.0
     den = 0.0
+
     for lic in licenses:
         lic_rate, lic_rate_details = compute_license_rate(lic)
         pop = lic.population_total
         hrs = lic.total_hours()
         w = (pop or 0) * hrs
-        details["licenses"].append(
-            {"license_id": lic.license_id, "license_rate": lic_rate, "population": pop, "hours": hrs, "weight": w, "license_rate_details": lic_rate_details}
-        )
+
+        details["licenses"].append({
+            "license_id": lic.license_id,
+            "license_rate": lic_rate,
+            "population": pop,
+            "hours": hrs,
+            "weight": w,
+            "license_rate_details": lic_rate_details
+        })
+
         if pop is None:
             continue
         num += lic_rate * w
         den += w
+
     if den == 0:
         return 2.5, {"warning": "Не удалось рассчитать взвешенную ставку (нет населения). Применена 2,5%."}
     return round_rate(num / den), details
@@ -451,7 +487,7 @@ def compute_percent_sum_q(
     elif annual_revenue is not None:
         base_q = annual_revenue / 4.0
         det["base_type"] = "доходы (год/4)"
-        notes.append("База для процента: годовая выручка/доход разделён на 4 (допущение).")
+        notes.append("База для процента: годовая выручка/доход разделён на 4 (если нет поквартальных данных).")
     elif expenses_q is not None:
         base_q = expenses_q
         det["base_type"] = "расходы (квартал)"
@@ -466,10 +502,12 @@ def compute_percent_sum_q(
 
 def lookup_min_sum(mins_df: pd.DataFrame, population: int, media_class: str) -> Optional[float]:
     sub = mins_df[
-        (mins_df["Среда осуществления вещания (в эфире, по кабелю, одновременно в эфире и по кабелю)"].astype(str).str.strip() == media_class)
+        (mins_df["Среда осуществления вещания (в эфире, по кабелю, одновременно в эфире и по кабелю)"]
+         .astype(str).str.strip() == media_class)
     ].copy()
     if sub.empty:
         return None
+
     for _, r in sub.iterrows():
         lo = int(r["Численность населения на территории вещания, от (человек)"])
         hi = r["Численность населения на территории вещания, до (человек)"]
@@ -530,7 +568,8 @@ def compute_min_total(
 
     def get_param_contains(substr: str, default: float) -> float:
         sub = params_df[
-            params_df["Наименование параметра для расчета авторского вознаграждения"].astype(str).str.contains(substr, case=False, na=False)
+            params_df["Наименование параметра для расчета авторского вознаграждения"]
+            .astype(str).str.contains(substr, case=False, na=False)
         ]
         if sub.empty:
             return default
@@ -567,6 +606,7 @@ def compute_min_total(
         media_for_agg = "Одновременно в эфире и по кабелю"
         notes.append("Среда договора принудительно задана как «Одновременно в эфире и по кабелю».")
 
+    # small income branch decision
     if use_small_income_branch is not None:
         small_branch = use_small_income_branch
     else:
@@ -577,8 +617,12 @@ def compute_min_total(
         )
 
     min_total = 0.0
+
     if small_branch:
-        N_sum = sum(int(lic.population_total) for lic in licenses if lic.population_total is not None)
+        N_sum = 0
+        for lic in licenses:
+            if lic.population_total is not None:
+                N_sum += int(lic.population_total)
         if N_sum <= 0:
             return None, details, notes + ["Нельзя применить ветку малого дохода: нет суммарной численности населения."]
         m = lookup_min_sum(mins_df, N_sum, media_for_agg)
@@ -592,6 +636,7 @@ def compute_min_total(
         for lic in licenses:
             if lic.population_total is None:
                 continue
+
             media_for_min = lic.media_class
             if contract_media in ("cable", "air"):
                 media_for_min = "В эфире или по кабелю"
@@ -600,13 +645,14 @@ def compute_min_total(
 
             m = lookup_min_sum(mins_df, int(lic.population_total), media_for_min)
             if m is None:
-                notes.append(f"Не найдена минималка для лицензии {lic.license_id} (население={lic.population_total}, среда={media_for_min}).")
+                notes.append(f"Не найдена минималка по таблице для лицензии {lic.license_id} (население={lic.population_total}, среда={media_for_min}).")
                 continue
 
             hrs = lic.total_hours()
             coeff = 1.0
             if hrs < 126:
                 coeff = hour_coeff(hours_df, hrs)
+
             m2 = m * coeff
             per_lic.append({"license_id": lic.license_id, "population": lic.population_total, "media": media_for_min, "min_table": m, "hours_week": hrs, "hour_coeff": coeff, "min_after": m2})
             min_total += m2
@@ -635,8 +681,14 @@ def compute_min_total(
 
     if percent_sum_q is not None:
         if min_total > (1.0 + GUILLOTINE_PCT) * percent_sum_q:
+            details["steps"].append({"step": "D1", "min_total": min_total, "percent_sum_q": percent_sum_q})
             notes.append("Сработала «гильотина»: минималка превышает расчёт по проценту более чем на 10%.")
-            N_sum = sum(int(lic.population_total) for lic in licenses if lic.population_total is not None)
+
+            N_sum = 0
+            for lic in licenses:
+                if lic.population_total is not None:
+                    N_sum += int(lic.population_total)
+
             if N_sum > 0:
                 alt1 = lookup_min_sum(mins_df, N_sum, media_for_agg)
                 if alt1 is not None:
@@ -649,17 +701,21 @@ def compute_min_total(
                         add_per = max(INTERNET_PCT * alt, INTERNET_MIN_ADD)
                         alt += add_per * internet_resources
 
+                    details["steps"].append({"step": "D2", "N_sum": N_sum, "min_table": alt1, "min_after_adjust": alt})
                     if alt <= (1.0 + GUILLOTINE_PCT) * percent_sum_q:
                         min_total = alt
-                        notes.append("«Гильотина»: минималка пересчитана по суммарной численности и принята.")
+                        notes.append("«Гильотина», шаг 1: минималка пересчитана по суммарной численности и принята.")
                     else:
                         if past_year_percent_paid is not None:
                             min_total = 0.25 * float(past_year_percent_paid)
-                            notes.append("«Гильотина»: минималка = 1/4 от фактических платежей по проценту за прошлый год.")
+                            details["steps"].append({"step": "D3", "S_year": past_year_percent_paid, "k": 0.25, "min_after": min_total})
+                            notes.append("«Гильотина», шаг 2: минималка = 1/4 от фактических платежей по проценту за год.")
                         else:
-                            notes.append("Для шага D3 нужна сумма фактических платежей по проценту за прошлый год (past_year_percent_paid).")
+                            notes.append("«Гильотина», шаг 2 требует past_year_percent_paid (сумма платежей по проценту за год).")
+                else:
+                    notes.append("Не удалось выполнить шаг 1 «гильотины»: нет минималки по суммарной численности в таблице.")
             else:
-                notes.append("Не удалось применить «гильотину»: нет суммарной численности населения.")
+                notes.append("Не удалось выполнить «гильотину»: нет суммарной численности населения.")
 
     return round(min_total, 2), details, notes
 
@@ -688,6 +744,7 @@ def format_report(
     needs: List[str],
 ) -> str:
     lines: List[str] = []
+
     org_name = licenses[0].org_name if licenses else "Не найдено (нет записей в РКН)"
     lines.append(f"{org_name}, ИНН {inn}.")
     lines.append("")
@@ -707,28 +764,41 @@ def format_report(
     for lic in licenses:
         pop = lic.population_total
         pop_str = f"{pop:,}".replace(",", " ") if pop is not None else "не найдено"
-        lines.append(f"— ID лицензии: {lic.license_id}; среда: {lic.media_raw} → {lic.media_class}; население: {pop_str}.")
+        lines.append(f"— ID лицензии в выгрузке РКН: {lic.license_id}; среда: {lic.media_raw} → {lic.media_class}; население: {pop_str}.")
         lines.append(f"  РКН: {lic.rkn_url}")
-        for n in (lic.population_notes or [])[:2]:
-            lines.append(f"  Примечание: {n}")
-    lines.append("")
+        if lic.population_notes:
+            for n in lic.population_notes[:2]:
+                lines.append(f"  Примечание: {n}")
 
+        for ch in lic.channels[:10]:
+            hrs = ch.hours_week if ch.hours_week is not None else 168.0
+            ch_rate, ch_notes = ch.avg_rate()
+            lines.append(f"  • Канал/СМИ: {ch.name}; часы/нед: {hrs:g}; ставка канала: {round_rate(ch_rate):.1f}%.")
+            for tn in ch_notes[:2]:
+                lines.append(f"    — {tn}")
+            if ch.topics:
+                for t in ch.topics[:8]:
+                    share = f"{t.share_pct:g}%" if t.share_pct is not None else "без доли"
+                    lines.append(f"    Тематика: {t.topic_raw} ({share}) → {t.rate_pct:.1f}%.")
+
+    lines.append("")
     lines.append(f"Процентная ставка по договору (взвешенная по часам×населению): {contract_rate:.1f}%.")
+    lines.append("")
     lines.append(f"Расчётная сумма по проценту за квартал: {money(percent_sum_q)} ₽.")
-    lines.append(f"Минимальная сумма за квартал: {money(min_total)} ₽.")
+    lines.append("")
+    lines.append(f"Минимальная сумма за квартал (по правилам/таблицам): {money(min_total)} ₽.")
     lines.append("")
 
     if percent_sum_q is not None and min_total is not None:
         pay = max(percent_sum_q, min_total)
         which = "по проценту" if percent_sum_q >= min_total else "по минималке"
-        lines.append(f"Итог: {contract_rate:.1f}% от базы за квартал, но не менее {money(min_total)} ₽.")
-        lines.append(f"К оплате: {money(pay)} ₽ ({which}).")
+        lines.append(f"Итог: {contract_rate:.1f}% от базы за квартал, но не менее {money(min_total)} ₽. К оплате: {money(pay)} ₽ ({which}).")
     else:
         lines.append("Итог: недостаточно данных для финального вывода (см. «Нужно уточнить»).")
     lines.append("")
 
     if internet_resources:
-        lines.append(f"Интернет-вещание: ресурсов — {internet_resources} (доплата применена по правилам).")
+        lines.append(f"Интернет-вещание: указано ресурсов — {internet_resources} (применена доплата по правилам).")
         lines.append("")
 
     if needs:
@@ -746,38 +816,58 @@ def format_report(
     return "\n".join(lines)
 
 
-# --------------------------- main ---------------------------
+# --------------------------- main (non-interactive) ---------------------------
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--inn", required=True, help="ИНН (10/12 цифр)")
     ap.add_argument("--year", type=int, default=None, help="Год (для подписи в отчёте)")
+
     ap.add_argument("--annual_revenue", type=float, default=None, help="Годовая выручка/доход")
     ap.add_argument("--revenue_q", type=float, default=None, help="Доходы за квартал")
     ap.add_argument("--expenses_q", type=float, default=None, help="Расходы за квартал (ветка госструктуры)")
-    ap.add_argument("--internet_resources", type=int, default=0, help="Кол-во интернет-ресурсов со стримингом")
-    ap.add_argument("--contract_quarter", type=int, default=1, help="Номер квартала действия договора")
-    ap.add_argument("--non_interactive", action="store_true", default=True, help="Всегда без input (для сайта)")
-    ap.add_argument("--contract_media", type=str, default="auto", choices=["auto", "cable", "air", "both"], help="Среда по договору")
-    ap.add_argument("--only_license", type=str, default=None, help="Считать только одну лицензию (ID)")
-    ap.add_argument("--past_year_percent_paid", type=float, default=None, help="Фактические платежи по проценту за прошлый год (для D3)")
+
+    ap.add_argument("--internet_resources", type=int, default=0)
+    ap.add_argument("--contract_quarter", type=int, default=1)
+    ap.add_argument("--contract_media", type=str, default="auto", choices=["auto", "cable", "air", "both"])
+
+    ap.add_argument("--only_license", type=str, default=None)
+    ap.add_argument("--past_year_percent_paid", type=float, default=None)
+
     ap.add_argument("--rkn_xlsx", type=str, default="Таблица РКН.xlsx")
     ap.add_argument("--vars_xlsx", type=str, default="Переменные из ставок.xlsx")
-    ap.add_argument("--force_small_income", action="store_true", help="Принудительно включить ветку малого дохода (C3)")
-    ap.add_argument("--no_small_income", action="store_true", help="Принудительно выключить ветку малого дохода (C3)")
-    ap.add_argument("--population_override", type=int, default=None, help="Переопределить население (по письму)")
+
+    ap.add_argument("--force_small_income", action="store_true")
+    ap.add_argument("--no_small_income", action="store_true")
+
+    ap.add_argument("--population_override", type=int, default=None)
+
+    ap.add_argument("--non_interactive", action="store_true", help="для сайта всегда ставим этот флаг")
 
     args = ap.parse_args(argv)
 
     p = Progress()
-    inn = parse_inn(args.inn)
 
+    try:
+        inn = parse_inn(args.inn)
+    except Exception as e:
+        print(f"Ошибка: {e}")
+        return 2
+
+    base_dir = Path(__file__).resolve().parent
     rkn_xlsx = Path(args.rkn_xlsx)
     vars_xlsx = Path(args.vars_xlsx)
+    if not rkn_xlsx.is_absolute():
+        rkn_xlsx = base_dir / rkn_xlsx
+    if not vars_xlsx.is_absolute():
+        vars_xlsx = base_dir / vars_xlsx
+
     if not rkn_xlsx.exists():
-        raise FileNotFoundError(f"Не найден файл: {rkn_xlsx}")
+        print(f"Ошибка: не найден файл РКН: {rkn_xlsx}")
+        return 2
     if not vars_xlsx.exists():
-        raise FileNotFoundError(f"Не найден файл: {vars_xlsx}")
+        print(f"Ошибка: не найден файл ставок: {vars_xlsx}")
+        return 2
 
     p.tick("читаю РКН и собираю лицензии")
     licenses, load_notes = load_licenses_by_inn(rkn_xlsx, inn, vars_xlsx)
@@ -789,8 +879,9 @@ def main(argv=None) -> int:
             old = lic.population_total
             lic.population_total = po
             note = f"Переопределено пользователем (по письму): {po}" + (f" (РКН: {old})" if old is not None else "")
-            lic.population_notes = (lic.population_notes or []) + [note]
+            lic.population_notes.append(note)
 
+    # only_license filter
     if args.only_license:
         target = str(args.only_license).strip()
         licenses = [x for x in licenses if str(x.license_id).strip() == target]
@@ -807,21 +898,22 @@ def main(argv=None) -> int:
         return 2
 
     if all(lic.population_total is None for lic in licenses):
-        needs.append("В РКН-таблице не заполнено население. Нужно открыть карточки лицензий РКН и взять численность населения территории вещания.")
+        needs.append("В РКН-таблице не заполнено население. Нужно открыть карточки лицензий РКН по ссылкам и взять численность населения территории вещания.")
 
     p.tick("считаю процентную ставку по договору")
-    contract_rate, _contract_rate_details = compute_contract_rate(licenses)
+    contract_rate, _ = compute_contract_rate(licenses)
 
     p.tick("считаю сумму по проценту за квартал")
-    percent_sum_q, _percent_details, percent_notes = compute_percent_sum_q(
+    percent_sum_q, _, percent_notes = compute_percent_sum_q(
         contract_rate=contract_rate,
         annual_revenue=args.annual_revenue,
         revenue_q=args.revenue_q,
         expenses_q=args.expenses_q,
     )
     notes.extend(percent_notes)
+
     if percent_sum_q is None:
-        needs.append("Нужна финансовая база: annual_revenue (годовая) или revenue_q (квартальная) или expenses_q (расходы квартала).")
+        needs.append("Нужна финансовая база: annual_revenue (годовая) или revenue_q (квартальная) или expenses_q (расходы квартала для ветки госструктуры).")
 
     annual_income_for_rules = None
     if args.annual_revenue is not None:
@@ -829,16 +921,18 @@ def main(argv=None) -> int:
     elif args.revenue_q is not None:
         annual_income_for_rules = float(args.revenue_q) * 4.0
 
-    use_small_income = None
     if args.force_small_income and args.no_small_income:
-        raise ValueError("Нельзя одновременно --force_small_income и --no_small_income")
+        print("Ошибка: нельзя одновременно --force_small_income и --no_small_income")
+        return 2
+
+    use_small_income = None
     if args.force_small_income:
         use_small_income = True
-    if args.no_small_income:
+    elif args.no_small_income:
         use_small_income = False
 
     p.tick("считаю минимальную сумму")
-    min_total, _min_details, min_notes = compute_min_total(
+    min_total, _, min_notes = compute_min_total(
         licenses=licenses,
         vars_xlsx=vars_xlsx,
         annual_income_for_rules=annual_income_for_rules,
@@ -872,13 +966,20 @@ def main(argv=None) -> int:
 
 
 def run_calc_capture(argv: List[str]) -> Tuple[int, str]:
-    import io
-    from contextlib import redirect_stdout
-
+    """
+    Запускает main(argv=...), возвращает (exit_code, stdout_text).
+    """
     buf = io.StringIO()
     try:
         with redirect_stdout(buf):
             code = int(main(argv))
     except SystemExit as e:
         code = int(getattr(e, "code", 1) or 0)
+    except Exception as e:
+        code = 2
+        buf.write(f"\nОШИБКА: {type(e).__name__}: {e}\n")
     return code, buf.getvalue()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
