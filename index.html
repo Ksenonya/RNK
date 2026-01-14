@@ -317,6 +317,7 @@
       ["Квартал договора", A.contract_quarter],
       ["Среда договора", A.contract_media],
       ["Ветка малого дохода", A.small_income_mode],
+      ["Новый пользователь", (A.new_user === true ? "Да" : (A.new_user === false ? "Нет" : undefined))],
       ["Только лицензия", A.only_license],
       ["Население (override)", A.population_override],
       ["Платежи за прошлый год", A.past_year_percent_paid],
@@ -344,6 +345,14 @@
       render: ()=> setInputText({label:"ИНН", placeholder:"например 0326499787"}),
       validate: (v)=> (/^\d{10}$|^\d{12}$/.test(v.trim()) ? v.trim() : null),
       error: "ИНН должен состоять из 10 или 12 цифр."
+    },
+    {
+      key:"new_user",
+      title:"Новый пользователь?",
+      text:"Это первый лицензионный договор с РАО (льгота по минимальной сумме в первые периоды)?",
+      render: ()=> setInputSelect({label:"Новый пользователь", choices:["Нет","Да"], value:"Нет"}),
+      validate: (v)=> (v === "Да"),  // вернёт true/false
+      error:""
     },
     {
       key:"year",
@@ -578,6 +587,7 @@
       internet_resources: (A.internet_resources ?? 0),
       contract_quarter: (A.contract_quarter ?? 1),
       contract_media: (A.contract_media ?? "auto"),
+      new_user: (A.new_user ?? false),
 
       only_license: (A.only_license ?? null),
       population_override: (A.population_override ?? null),
