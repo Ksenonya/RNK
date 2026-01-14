@@ -556,6 +556,7 @@ def compute_min_total(
     percent_sum_q: Optional[float],
     contract_media: str = "auto",
     use_small_income_branch: Optional[bool] = None,
+    new_user_only: bool = False,
 ) -> Tuple[Optional[float], Dict[str, Any], List[str]]:
     notes: List[str] = []
     details: Dict[str, Any] = {"steps": []}
@@ -666,11 +667,13 @@ def compute_min_total(
         details["steps"].append({"step": "C4", "n_licenses": n_lic, "coeff": k, "min_after": min_total})
         notes.append(f"Применена скидка по числу лицензий (кол-во ВЛ={n_lic}).")
 
-    k_period = contract_period_coeff(period_df, contract_quarter)
-    if k_period != 1.0:
+    # ✅ ВОТ ГЛАВНЫЙ ФИКС:
+    # коэффициент "по периодам договора" применяется ТОЛЬКО если новый пользователь = да
+    k_period = contract_period_coeff(period_df, contract_quarter) if new_user_only else 1.0
+    if new_user_only and k_period != 1.0:
         min_total *= k_period
         details["steps"].append({"step": "E1(period)", "contract_quarter": contract_quarter, "coeff": k_period, "min_after": min_total})
-        notes.append("Применён коэффициент по периоду действия договора.")
+        notes.append("Применён коэффициент по периоду действия договора (льгота для нового пользователя).")
 
     if internet_resources and internet_resources > 0:
         add_per = max(INTERNET_PCT * min_total, INTERNET_MIN_ADD)
@@ -736,6 +739,7 @@ def format_report(
     expenses_q: Optional[float],
     internet_resources: int,
     contract_quarter: int,
+    new_user_only: bool,
     licenses: List[License],
     contract_rate: float,
     percent_sum_q: Optional[float],
@@ -758,6 +762,10 @@ def format_report(
         lines.append(f"Расходы за квартал (введено): {money(expenses_q)} ₽ (ветка 100% госструктура / нет доходов).")
     else:
         lines.append("Финансовая база для расчёта процента: НЕ ЗАДАНА.")
+    lines.append("")
+
+    lines.append(f"Отчетный период действия договора (квартал с начала договора): {contract_quarter}.")
+    lines.append(f"Признак «новый пользователь»: {'да' if new_user_only else 'нет'}.")
     lines.append("")
 
     lines.append(f"Вещательные лицензии (по таблице РКН): {len(licenses)} шт.")
@@ -830,6 +838,8 @@ def main(argv=None) -> int:
     ap.add_argument("--internet_resources", type=int, default=0)
     ap.add_argument("--contract_quarter", type=int, default=1)
     ap.add_argument("--contract_media", type=str, default="auto", choices=["auto", "cable", "air", "both"])
+
+    ap.add_argument("--new_user", action="store_true")
 
     ap.add_argument("--only_license", type=str, default=None)
     ap.add_argument("--past_year_percent_paid", type=float, default=None)
@@ -942,6 +952,7 @@ def main(argv=None) -> int:
         percent_sum_q=percent_sum_q,
         contract_media=args.contract_media,
         use_small_income_branch=use_small_income,
+        new_user_only=bool(args.new_user),
     )
     notes.extend(min_notes)
 
@@ -954,6 +965,7 @@ def main(argv=None) -> int:
         expenses_q=args.expenses_q,
         internet_resources=args.internet_resources,
         contract_quarter=args.contract_quarter,
+        new_user_only=bool(args.new_user),
         licenses=licenses,
         contract_rate=contract_rate,
         percent_sum_q=percent_sum_q,
