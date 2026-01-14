@@ -1,19 +1,19 @@
-from __future__ import annotations
+ from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Optional, Literal, Any
+from typing import Any, List, Optional, Literal
 
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
-# --- Pydantic v1/v2 совместимость для валидаторов ---
+# Pydantic v1/v2 совместимость
 try:
     from pydantic import field_validator  # type: ignore
-    _PYDANTIC_V2 = True
+    _V2 = True
 except Exception:
     from pydantic import validator as field_validator  # type: ignore
-    _PYDANTIC_V2 = False
+    _V2 = False
 
 from rao import run_calc_capture
 
@@ -29,8 +29,7 @@ def _is_dash(v: Any) -> bool:
     if v is None:
         return True
     if isinstance(v, str):
-        s = v.strip()
-        return s.lower() in DASH_TOKENS
+        return v.strip().lower() in DASH_TOKENS
     return False
 
 
@@ -45,10 +44,8 @@ def _to_none_or_int(v: Any) -> Optional[int]:
         return None
     if isinstance(v, int):
         return v
-    if isinstance(v, float) and v.is_integer():
-        return int(v)
     s = str(v).strip().replace(" ", "")
-    if s == "":
+    if not s:
         return None
     return int(s)
 
@@ -59,14 +56,13 @@ def _to_none_or_float(v: Any) -> Optional[float]:
     if isinstance(v, (int, float)):
         return float(v)
     s = str(v).strip().replace(" ", "").replace(",", ".")
-    if s == "":
+    if not s:
         return None
     return float(s)
 
 
 class CalcRequest(BaseModel):
     inn: str = Field(..., description="ИНН 10 или 12 цифр")
-    year: Optional[int] = Field(None, ge=1900, le=2100)
 
     annual_revenue: Optional[float] = Field(None, ge=0)
     revenue_q: Optional[float] = Field(None, ge=0)
@@ -77,6 +73,7 @@ class CalcRequest(BaseModel):
     contract_media: Literal["auto", "cable", "air", "both"] = "auto"
 
     new_user: bool = False
+    assoc_member: bool = False
 
     only_license: Optional[str] = None
     population_override: Optional[int] = Field(None, ge=0, le=2_000_000_000)
@@ -84,7 +81,7 @@ class CalcRequest(BaseModel):
 
     small_income_mode: Literal["auto", "force_on", "force_off"] = "auto"
 
-    if _PYDANTIC_V2:
+    if _V2:
         @field_validator("inn", mode="before")
         @classmethod
         def _v_inn(cls, v: Any) -> str:
@@ -96,11 +93,6 @@ class CalcRequest(BaseModel):
                 raise ValueError("ИНН должен состоять из 10 или 12 цифр")
             return s
 
-        @field_validator("year", "population_override", mode="before")
-        @classmethod
-        def _v_ints(cls, v: Any) -> Optional[int]:
-            return _to_none_or_int(v)
-
         @field_validator("annual_revenue", "revenue_q", "expenses_q", "past_year_percent_paid", mode="before")
         @classmethod
         def _v_floats(cls, v: Any) -> Optional[float]:
@@ -110,6 +102,11 @@ class CalcRequest(BaseModel):
         @classmethod
         def _v_only_license(cls, v: Any) -> Optional[str]:
             return _to_none_or_str(v)
+
+        @field_validator("population_override", mode="before")
+        @classmethod
+        def _v_pop(cls, v: Any) -> Optional[int]:
+            return _to_none_or_int(v)
 
     else:
         @field_validator("inn", pre=True)
@@ -122,10 +119,6 @@ class CalcRequest(BaseModel):
                 raise ValueError("ИНН должен состоять из 10 или 12 цифр")
             return s
 
-        @field_validator("year", "population_override", pre=True)
-        def _v1_ints(cls, v: Any) -> Optional[int]:
-            return _to_none_or_int(v)
-
         @field_validator("annual_revenue", "revenue_q", "expenses_q", "past_year_percent_paid", pre=True)
         def _v1_floats(cls, v: Any) -> Optional[float]:
             return _to_none_or_float(v)
@@ -133,6 +126,10 @@ class CalcRequest(BaseModel):
         @field_validator("only_license", pre=True)
         def _v1_only_license(cls, v: Any) -> Optional[str]:
             return _to_none_or_str(v)
+
+        @field_validator("population_override", pre=True)
+        def _v1_pop(cls, v: Any) -> Optional[int]:
+            return _to_none_or_int(v)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -147,10 +144,7 @@ def home():
 
 @app.post("/api/calc")
 def api_calc(req: CalcRequest):
-    argv: List[str] = ["--inn", req.inn.strip()]
-
-    if req.year is not None:
-        argv += ["--year", str(req.year)]
+    argv: List[str] = ["--inn", req.inn.strip(), "--non_interactive"]
 
     if req.revenue_q is not None:
         argv += ["--revenue_q", str(req.revenue_q)]
@@ -165,13 +159,13 @@ def api_calc(req: CalcRequest):
 
     if req.new_user:
         argv.append("--new_user")
+    if req.assoc_member:
+        argv.append("--assoc_member")
 
     if req.only_license:
         argv += ["--only_license", req.only_license.strip()]
-
     if req.population_override is not None:
         argv += ["--population_override", str(int(req.population_override))]
-
     if req.past_year_percent_paid is not None:
         argv += ["--past_year_percent_paid", str(req.past_year_percent_paid)]
 
@@ -180,9 +174,9 @@ def api_calc(req: CalcRequest):
     elif req.small_income_mode == "force_off":
         argv += ["--no_small_income"]
 
-    if "--non_interactive" not in argv:
-        argv.append("--non_interactive")
-
     code, out = run_calc_capture(argv)
-    status = 200 if code == 0 else 400
-    return JSONResponse(status_code=status, content={"exit_code": code, "output": out})
+    out = (out or "").strip()
+
+    if code == 0:
+        return JSONResponse(status_code=200, content={"ok": True, "text": out})
+    return JSONResponse(status_code=400, content={"ok": False, "error": out or "Ошибка расчёта"})
