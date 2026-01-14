@@ -230,6 +230,8 @@
   const summary = document.getElementById("summary");
   const output = document.getElementById("output");
   const spin = document.getElementById("spin");
+  const SKIP = "__SKIP__";
+
 
   function escapeHtml(s){
     return String(s ?? "").replace(/[&<>"']/g, c => ({
@@ -391,9 +393,10 @@
       when: ()=> A.base_type === "revenue_q",
       render: ()=> setInputText({label:"Доход за квартал", placeholder:"например 1250000 или -"}),
       validate: (v)=>{
+        if (isEmptyOrDash(v)) return SKIP;
         const n = parseFloatMaybe(v);
-        if(n === null) return null;
-        return (n >= 0) ? n : null;
+        if(n === null || !Number.isFinite(n) || n < 0) return null;
+        return n;
       },
       error:"Введите число ≥ 0 или «-»."
     },
@@ -404,11 +407,13 @@
       when: ()=> A.base_type === "annual_revenue",
       render: ()=> setInputText({label:"Годовая выручка", placeholder:"например 5000000 или -"}),
       validate: (v)=>{
+        if (isEmptyOrDash(v)) return SKIP;
         const n = parseFloatMaybe(v);
-        if(n === null) return null;
-        return (n >= 0) ? n : null;
+        if(n === null || !Number.isFinite(n) || n < 0) return null;
+        return n;
       },
       error:"Введите число ≥ 0 или «-»."
+
     },
     {
       key:"expenses_q",
@@ -417,11 +422,13 @@
       when: ()=> A.base_type === "expenses_q",
       render: ()=> setInputText({label:"Расходы за квартал", placeholder:"например 900000 или -"}),
       validate: (v)=>{
+        if (isEmptyOrDash(v)) return SKIP;
         const n = parseFloatMaybe(v);
-        if(n === null) return null;
-        return (n >= 0) ? n : null;
+        if(n === null || !Number.isFinite(n) || n < 0) return null;
+        return n;
       },
       error:"Введите число ≥ 0 или «-»."
+
     },
     {
       key:"internet_resources",
@@ -513,7 +520,7 @@
       title:"Ограничение лицензией",
       text:"Если нужно посчитать только одну лицензию — введите её ID. Если не нужно — поставьте «-».",
       render: ()=> setInputText({label:"Только лицензия (опционально)", placeholder:"ID лицензии или -"}),
-      validate: (v)=> isEmptyOrDash(v) ? null : v.trim()
+      validate: (v)=> isEmptyOrDash(v) ? SKIP : v.trim()
     },
     {
       key:"population_override",
@@ -521,12 +528,13 @@
       text:"Если да — введите население территории вещания. Если нет — поставьте «-».",
       render: ()=> setInputText({label:"Население (опционально)", placeholder:"например 978500 или -"}),
       validate: (v)=>{
-        if(isEmptyOrDash(v)) return null;
+        if(isEmptyOrDash(v)) return SKIP;
         const n = parseIntMaybe(v);
         if(!Number.isInteger(n) || n < 0) return null;
         return n;
       },
       error:"Введите целое число ≥ 0 или «-»."
+
     },
     {
       key:"have_past",
@@ -699,9 +707,28 @@
     const parsed = step.validate ? step.validate(v) : v;
 
     if(parsed === null){
-      setError(step.error || "Проверь значение.");
-      return;
+  setError(step.error || "Проверь значение.");
+  return;
+}
+
+  if(parsed === SKIP){
+    // сохраняем как "нет данных" и идём дальше
+    applyValue(step, null);
+  
+    // если это финансовый шаг и пользователь поставил "-" → считаем что финансовой базы нет
+    if(step.key === "revenue_q" || step.key === "annual_revenue" || step.key === "expenses_q"){
+      A.revenue_q = null;
+      A.annual_revenue = null;
+      A.expenses_q = null;
+      A.base_type = null; // эквивалент "Нет данных"
     }
+  
+    history.push(idx);
+    idx++;
+    render();
+    return;
+}
+
 
     applyValue(step, parsed);
     history.push(idx);
