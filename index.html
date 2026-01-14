@@ -483,37 +483,49 @@
       error:"Выберите один из вариантов."
     },
     {
-      key:"small_income_mode",
-      title:"Ветка малого дохода",
-      text:"Оставить авто-выбор, либо принудительно включить/выключить?",
-      render: ()=> setInputSelect({
-        label:"Режим",
-        choices:["auto","force_on","force_off"],
-        value:(A.small_income_mode ?? "auto")
-      }),
-      validate: (v)=> ["auto","force_on","force_off"].includes(v) ? v : null,
-      error:"Выберите: auto / force_on / force_off."
-    },
-    {
-      key:"only_license",
-      title:"Ограничение лицензией",
-      text:"Если нужно посчитать только одну лицензию — введите её ID. Иначе оставьте пустым или «-».",
-      render: ()=> setInputText({label:"Только лицензия (опционально)", placeholder:"ID лицензии или пусто / -"}),
-      validate: (v)=> isEmptyOrDash(v) ? null : v.trim()
-    },
-    {
-      key:"population_override",
-      title:"Территория отличается от заявленной в лицензии?",
-      text:"Если фактическая территория отличается — введите население территории вещания. Иначе оставьте пустым или «-».",
-      render: ()=> setInputText({label:"Население (опционально)", placeholder:"например 978500 (пусто / - = нет данных)"}),
-      validate: (v)=>{
-        if(isEmptyOrDash(v)) return null;
-        const n = parseIntMaybe(v);
-        if(!Number.isInteger(n) || n < 0) return null;
-        return n;
-      },
-      error:"Введите целое число ≥ 0, или оставьте пустым/«-»."
-    },
+  key:"small_income_mode",
+  title:"Ветка малого дохода",
+  text:"Выберите режим расчёта.",
+  render: ()=> setInputSelect({
+    label:"Режим",
+    choices:["Авто","Принудительно включить","Принудительно выключить"],
+    value: (()=>{
+      const v = (A.small_income_mode ?? "auto");
+      if(v === "force_on") return "Принудительно включить";
+      if(v === "force_off") return "Принудительно выключить";
+      return "Авто";
+    })()
+  }),
+  validate: (v)=>{
+    if(v === "Авто") return "auto";
+    if(v === "Принудительно включить") return "force_on";
+    if(v === "Принудительно выключить") return "force_off";
+    return null;
+  },
+  error:"Выберите режим."
+  },
+  {
+  key:"only_license",
+  title:"Ограничение лицензией",
+  text:"Если нужно посчитать только одну лицензию — введите её ID. Если не нужно — поставьте «-».",
+  render: ()=> setInputText({label:"Только лицензия (опционально)", placeholder:"ID лицензии или -"}),
+  validate: (v)=> isEmptyOrDash(v) ? null : v.trim()
+  },
+
+   {
+  key:"population_override",
+  title:"Территория отличается от заявленной в лицензии?",
+  text:"Если да — введите население территории вещания. Если нет — поставьте «-».",
+  render: ()=> setInputText({label:"Население (опционально)", placeholder:"например 978500 или -"}),
+  validate: (v)=>{
+    if(isEmptyOrDash(v)) return null;
+    const n = parseIntMaybe(v);
+    if(!Number.isInteger(n) || n < 0) return null;
+    return n;
+  },
+  error:"Введите целое число ≥ 0, или поставьте «-»."
+},
+
     {
       key:"have_past",
       title:"Платежи за прошлый год",
@@ -522,17 +534,20 @@
       validate: (v)=> (v === "Да"),
     },
     {
-      key:"past_year_percent_paid",
-      title:"Сумма платежей за прошлый год",
-      text:"Введите сумму (число ≥ 0). Пусто/«-» = нет данных.",
-      when: ()=> A.have_past === true,
-      render: ()=> setInputText({label:"Платежи за прошлый год", placeholder:"например 150000 (пусто / - = нет данных)"}),
-      validate: (v)=>{
-        const n = parseFloatMaybe(v);
-        if(n === null) return null;
-        if(!Number.isFinite(n) || n < 0) return null;
-        return n;
-      },
+  key:"past_year_percent_paid",
+  title:"Сумма платежей за прошлый год",
+  text:"Введите сумму (число ≥ 0). Если данных нет — поставьте «-».",
+  when: ()=> A.have_past === true,
+  render: ()=> setInputText({label:"Платежи за прошлый год", placeholder:"например 150000 или -"}),
+  validate: (v)=>{
+    const n = parseFloatMaybe(v);
+    if(n === null) return null;
+    if(!Number.isFinite(n) || n < 0) return null;
+    return n;
+  },
+  error:"Введите число ≥ 0, или поставьте «-»."
+},
+
       error:"Введите число ≥ 0, или оставьте пустым/«-»."
     },
     {
