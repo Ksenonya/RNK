@@ -18,11 +18,14 @@ import pandas as pd
 # --------------------------- helpers: progress ---------------------------
 
 class Progress:
-    def __init__(self) -> None:
+    def __init__(self, enabled: bool = True) -> None:
+        self.enabled = enabled
         self.total = 10
         self.step = 0
 
     def tick(self, msg: str) -> None:
+        if not self.enabled:
+            return
         self.step = min(self.total, self.step + 1)
         filled = int((self.step / self.total) * 10)
         bar = "■" * filled + "□" * (10 - filled)
@@ -557,6 +560,7 @@ def compute_min_total(
     contract_media: str = "auto",
     use_small_income_branch: Optional[bool] = None,
     new_user_only: bool = False,
+    assoc_member: bool = False,
 ) -> Tuple[Optional[float], Dict[str, Any], List[str]]:
     notes: List[str] = []
     details: Dict[str, Any] = {"steps": []}
@@ -566,6 +570,7 @@ def compute_min_total(
     hours_df = pd.read_excel(vars_xlsx, sheet_name="Коэффициенты по часам")
     period_df = pd.read_excel(vars_xlsx, sheet_name="Коэфф по периодам договора")
     params_df = pd.read_excel(vars_xlsx, sheet_name="Параметры для расчетов")
+    down_df = pd.read_excel(vars_xlsx, sheet_name="Понижающие коэффициенты")
 
     def get_param_contains(substr: str, default: float) -> float:
         sub = params_df[
@@ -582,6 +587,15 @@ def compute_min_total(
     INTERNET_PCT = get_param_contains("Дополнительный процент увеличения", 0.15)
     INTERNET_MIN_ADD = get_param_contains("Минимальное увеличение", 12500.0)
     GUILLOTINE_PCT = get_param_contains("Порог превышения", 0.1)
+
+    def down_coeff(contains: str, default: float = 1.0) -> float:
+        col = "Условие применения понижающего коэффициента (описательное обозначение)"
+        if col not in down_df.columns:
+            return default
+        sub = down_df[down_df[col].astype(str).str.contains(contains, case=False, na=False)]
+        if sub.empty:
+            return default
+        return float(sub.iloc[0]["Понижающий коэффициент к минимальной сумме вознаграждения"])
 
     pops_missing = [lic.license_id for lic in licenses if lic.population_total is None]
     if pops_missing:
@@ -601,13 +615,12 @@ def compute_min_total(
     if contract_media in ("cable", "air"):
         has_two_media = False
         media_for_agg = "В эфире или по кабелю"
-        notes.append("Среда договора принудительно задана как «В эфире или по кабелю» (air/cable).")
+        notes.append("Среда договора принудительно задана как «В эфире или по кабелю» (эфир/кабель).")
     elif contract_media == "both":
         has_two_media = True
         media_for_agg = "Одновременно в эфире и по кабелю"
         notes.append("Среда договора принудительно задана как «Одновременно в эфире и по кабелю».")
 
-    # small income branch decision
     if use_small_income_branch is not None:
         small_branch = use_small_income_branch
     else:
@@ -667,13 +680,29 @@ def compute_min_total(
         details["steps"].append({"step": "C4", "n_licenses": n_lic, "coeff": k, "min_after": min_total})
         notes.append(f"Применена скидка по числу лицензий (кол-во ВЛ={n_lic}).")
 
-    # ✅ ВОТ ГЛАВНЫЙ ФИКС:
-    # коэффициент "по периодам договора" применяется ТОЛЬКО если новый пользователь = да
+    # Понижающие коэффициенты к минимальной сумме
+    if new_user_only:
+        if media_for_agg == "Одновременно в эфире и по кабелю":
+            k_new = down_coeff("одновременно", 1.0)
+        else:
+            k_new = down_coeff("Новый пользователь, заключающий", 1.0)
+        if k_new != 1.0:
+            min_total *= k_new
+            details["steps"].append({"step": "DOWN_NEW_USER", "coeff": k_new, "min_after": min_total})
+            notes.append("Применён понижающий коэффициент для нового пользователя.")
+    if assoc_member:
+        k_assoc = down_coeff("ассоциаци", 1.0)
+        if k_assoc != 1.0:
+            min_total *= k_assoc
+            details["steps"].append({"step": "DOWN_ASSOC", "coeff": k_assoc, "min_after": min_total})
+            notes.append("Применён понижающий коэффициент для члена отраслевой ассоциации.")
+
+    # Коэффициент по периодам договора применяется только для нового пользователя
     k_period = contract_period_coeff(period_df, contract_quarter) if new_user_only else 1.0
     if new_user_only and k_period != 1.0:
         min_total *= k_period
         details["steps"].append({"step": "E1(period)", "contract_quarter": contract_quarter, "coeff": k_period, "min_after": min_total})
-        notes.append("Применён коэффициент по периоду действия договора (льгота для нового пользователя).")
+        notes.append("Применён коэффициент по периоду действия договора (для нового пользователя).")
 
     if internet_resources and internet_resources > 0:
         add_per = max(INTERNET_PCT * min_total, INTERNET_MIN_ADD)
@@ -698,6 +727,14 @@ def compute_min_total(
                     alt = alt1
                     if n_lic > 3:
                         alt *= discount_by_licenses(disc_df, n_lic)
+                    # применяем те же коэффициенты
+                    if new_user_only:
+                        if media_for_agg == "Одновременно в эфире и по кабелю":
+                            alt *= down_coeff("одновременно", 1.0)
+                        else:
+                            alt *= down_coeff("Новый пользователь, заключающий", 1.0)
+                    if assoc_member:
+                        alt *= down_coeff("ассоциаци", 1.0)
                     if k_period != 1.0:
                         alt *= k_period
                     if internet_resources and internet_resources > 0:
@@ -707,16 +744,16 @@ def compute_min_total(
                     details["steps"].append({"step": "D2", "N_sum": N_sum, "min_table": alt1, "min_after_adjust": alt})
                     if alt <= (1.0 + GUILLOTINE_PCT) * percent_sum_q:
                         min_total = alt
-                        notes.append("«Гильотина», шаг 1: минималка пересчитана по суммарной численности и принята.")
+                        notes.append("«Гильотина»: минималка пересчитана по суммарной численности населения и принята.")
                     else:
                         if past_year_percent_paid is not None:
                             min_total = 0.25 * float(past_year_percent_paid)
                             details["steps"].append({"step": "D3", "S_year": past_year_percent_paid, "k": 0.25, "min_after": min_total})
-                            notes.append("«Гильотина», шаг 2: минималка = 1/4 от фактических платежей по проценту за год.")
+                            notes.append("«Гильотина»: минималка рассчитана как 1/4 от платежей по проценту за прошлый год.")
                         else:
-                            notes.append("«Гильотина», шаг 2 требует past_year_percent_paid (сумма платежей по проценту за год).")
+                            notes.append("Для второго шага «гильотины» нужна сумма платежей по проценту за прошлый год.")
                 else:
-                    notes.append("Не удалось выполнить шаг 1 «гильотины»: нет минималки по суммарной численности в таблице.")
+                    notes.append("Не удалось выполнить «гильотину»: нет минималки по суммарной численности в таблице.")
             else:
                 notes.append("Не удалось выполнить «гильотину»: нет суммарной численности населения.")
 
@@ -740,6 +777,7 @@ def format_report(
     internet_resources: int,
     contract_quarter: int,
     new_user_only: bool,
+    assoc_member: bool,
     licenses: List[License],
     contract_rate: float,
     percent_sum_q: Optional[float],
@@ -765,7 +803,8 @@ def format_report(
     lines.append("")
 
     lines.append(f"Отчетный период действия договора (квартал с начала договора): {contract_quarter}.")
-    lines.append(f"Признак «новый пользователь»: {'да' if new_user_only else 'нет'}.")
+    lines.append(f"Ранее работал с РАО: {'да' if (not new_user_only) else 'нет'}.")
+    lines.append(f"Член отраслевой ассоциации: {'да' if assoc_member else 'нет'}.")
     lines.append("")
 
     lines.append(f"Вещательные лицензии (по таблице РКН): {len(licenses)} шт.")
@@ -840,6 +879,7 @@ def main(argv=None) -> int:
     ap.add_argument("--contract_media", type=str, default="auto", choices=["auto", "cable", "air", "both"])
 
     ap.add_argument("--new_user", action="store_true")
+    ap.add_argument("--assoc_member", action="store_true")
 
     ap.add_argument("--only_license", type=str, default=None)
     ap.add_argument("--past_year_percent_paid", type=float, default=None)
@@ -856,7 +896,7 @@ def main(argv=None) -> int:
 
     args = ap.parse_args(argv)
 
-    p = Progress()
+    p = Progress(enabled=not bool(args.non_interactive))
 
     try:
         inn = parse_inn(args.inn)
@@ -882,21 +922,19 @@ def main(argv=None) -> int:
     p.tick("читаю РКН и собираю лицензии")
     licenses, load_notes = load_licenses_by_inn(rkn_xlsx, inn, vars_xlsx)
 
-    # population override
     if args.population_override is not None:
         po = int(args.population_override)
         for lic in licenses:
             old = lic.population_total
             lic.population_total = po
-            note = f"Переопределено пользователем (по письму): {po}" + (f" (РКН: {old})" if old is not None else "")
+            note = f"Переопределено пользователем: {po}" + (f" (РКН: {old})" if old is not None else "")
             lic.population_notes.append(note)
 
-    # only_license filter
     if args.only_license:
         target = str(args.only_license).strip()
         licenses = [x for x in licenses if str(x.license_id).strip() == target]
         if not licenses:
-            print(f"Не найдена лицензия {target} у этого ИНН в таблице РКН.")
+            print(f"Ошибка: не найдена лицензия {target} у этого ИНН в таблице РКН.")
             return 2
 
     needs: List[str] = []
@@ -904,11 +942,11 @@ def main(argv=None) -> int:
     notes.extend(load_notes)
 
     if not licenses:
-        print("Нет данных по ИНН в таблице РКН.")
+        print("Ошибка: нет данных по ИНН в таблице РКН.")
         return 2
 
     if all(lic.population_total is None for lic in licenses):
-        needs.append("В РКН-таблице не заполнено население. Нужно открыть карточки лицензий РКН по ссылкам и взять численность населения территории вещания.")
+        needs.append("В РКН-таблице не заполнено население. Нужно взять численность населения территории вещания из карточек РКН.")
 
     p.tick("считаю процентную ставку по договору")
     contract_rate, _ = compute_contract_rate(licenses)
@@ -923,7 +961,7 @@ def main(argv=None) -> int:
     notes.extend(percent_notes)
 
     if percent_sum_q is None:
-        needs.append("Нужна финансовая база: annual_revenue (годовая) или revenue_q (квартальная) или expenses_q (расходы квартала для ветки госструктуры).")
+        needs.append("Нужна финансовая база: годовая выручка/доход или доходы за квартал или расходы за квартал (для ветки госструктуры).")
 
     annual_income_for_rules = None
     if args.annual_revenue is not None:
@@ -953,6 +991,7 @@ def main(argv=None) -> int:
         contract_media=args.contract_media,
         use_small_income_branch=use_small_income,
         new_user_only=bool(args.new_user),
+        assoc_member=bool(args.assoc_member),
     )
     notes.extend(min_notes)
 
@@ -966,6 +1005,7 @@ def main(argv=None) -> int:
         internet_resources=args.internet_resources,
         contract_quarter=args.contract_quarter,
         new_user_only=bool(args.new_user),
+        assoc_member=bool(args.assoc_member),
         licenses=licenses,
         contract_rate=contract_rate,
         percent_sum_q=percent_sum_q,
@@ -989,7 +1029,7 @@ def run_calc_capture(argv: List[str]) -> Tuple[int, str]:
         code = int(getattr(e, "code", 1) or 0)
     except Exception as e:
         code = 2
-        buf.write(f"\nОШИБКА: {type(e).__name__}: {e}\n")
+        buf.write(f"Ошибка: {type(e).__name__}: {e}\n")
     return code, buf.getvalue()
 
 
