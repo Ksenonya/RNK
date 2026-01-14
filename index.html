@@ -218,50 +218,37 @@
   const qText  = document.getElementById("qText");
   const inputBox = document.getElementById("inputBox");
   const errBox = document.getElementById("errBox");
-  const backBtn = document.getElementById("backBtn");
+  const prevBtn = document.getElementById("prevBtn");
   const nextBtn = document.getElementById("nextBtn");
-  const restartBtn = document.getElementById("restartBtn");
-  const stepPill = document.getElementById("stepPill");
-  const progressBar = document.getElementById("progressBar");
-  const progressLabel = document.getElementById("progressLabel");
   const summary = document.getElementById("summary");
   const output = document.getElementById("output");
-  const copyBtn = document.getElementById("copyBtn");
   const spin = document.getElementById("spin");
 
-  function showError(msg){
-    if(!msg){ errBox.style.display="none"; errBox.textContent=""; return; }
-    errBox.style.display="block";
-    errBox.textContent = msg;
-  }
-
   function escapeHtml(s){
-    return String(s)
-      .replaceAll("&","&amp;")
-      .replaceAll("<","&lt;")
-      .replaceAll(">","&gt;")
-      .replaceAll('"',"&quot;")
-      .replaceAll("'","&#039;");
+    return String(s ?? "").replace(/[&<>"']/g, c => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[c]));
   }
 
-  // === Главное исправление: "пусто" / "-" / "—" / "нет" считаем как null ===
   function isEmptyOrDash(v){
-    const s = String(v ?? "").trim();
-    return s === "" || s === "-" || s === "—" || s.toLowerCase() === "нет";
+    if(v == null) return true;
+    const s = String(v).trim().toLowerCase();
+    return s === "" || s === "-" || s === "—" || s === "–" || s === "нет";
   }
 
-  function parseIntMaybe(s){
-    if(isEmptyOrDash(s)) return null;
-    const t = String(s).trim().replace(/\s+/g,"");
-    if(!/^-?\d+$/.test(t)) return NaN;
-    return parseInt(t,10);
+  function parseFloatMaybe(v){
+    if(isEmptyOrDash(v)) return null;
+    const s = String(v).trim().replace(/\s+/g,"").replace(",",".");
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
   }
 
-  function parseFloatMaybe(s){
-    if(isEmptyOrDash(s)) return null;
-    const t = String(s).trim().replace(/\s+/g,"").replace(",",".");
-    const v = Number(t);
-    return Number.isFinite(v) ? v : NaN;
+  function parseIntMaybe(v){
+    if(isEmptyOrDash(v)) return null;
+    const s = String(v).trim().replace(/\s+/g,"");
+    const n = Number(s);
+    if(!Number.isFinite(n)) return null;
+    return Math.trunc(n);
   }
 
   function setInputText({label, placeholder="", value=""}){
@@ -290,16 +277,20 @@
     });
   }
 
-  function getInputValue(){
+  function getUserInput(){
     const el = document.getElementById("userInput");
     if(!el) return "";
     return el.value ?? "";
   }
 
+  function setError(msg){
+    errBox.textContent = msg || "";
+  }
+
   function updateSummary(){
     const baseLabel =
-      (A.base_type === "revenue_q") ? "Доход за квартал" :
-      (A.base_type === "annual_revenue") ? "Годовая выручка" :
+      (A.base_type === "annual_revenue") ? "Годовая выручка/доход" :
+      (A.base_type === "revenue_q") ? "Доходы за квартал" :
       (A.base_type === "expenses_q") ? "Расходы за квартал" :
       "Финансовая база";
 
@@ -311,30 +302,35 @@
 
     const items = [
       ["ИНН", A.inn],
-      ["Год", A.year],
       [baseLabel, baseValue],
       ["Интернет-ресурсы", A.internet_resources],
-      ["Квартал договора", A.contract_quarter],
-      ["Среда договора", A.contract_media],
+      ["Ранее работал с РАО?", (A.worked_before===true ? "Да" : (A.worked_before===false ? "Нет" : undefined))],
+      ...(A.worked_before===false ? [["Квартал договора", A.contract_quarter]] : []),
+      ["Среда договора", (()=>{
+        const v = (A.contract_media ?? "auto");
+        return (v==="auto") ? "Авто (как в лицензиях)" :
+               (v==="air") ? "В эфире" :
+               (v==="cable") ? "По кабелю" :
+               "Одновременно в эфире и по кабелю";
+      })()],
+      ["Член ассоциации", (A.assoc_member===true ? "Да" : (A.assoc_member===false ? "Нет" : undefined))],
       ["Ветка малого дохода", A.small_income_mode],
-      ["Новый пользователь", (A.new_user === true ? "Да" : (A.new_user === false ? "Нет" : undefined))],
       ["Только лицензия", A.only_license],
       ["Население (override)", A.population_override],
-      ["Платежи за прошлый год", A.past_year_percent_paid],
+      ["Есть платежи за прошлый год", (A.have_past===true ? "Да" : (A.have_past===false ? "Нет" : undefined))],
+      ["Сумма платежей за прошлый год", A.past_year_percent_paid],
     ];
 
-    summary.innerHTML = items
-      .filter(([k,v]) => v !== undefined && v !== null && String(v).length)
+    const rows = items
+      .filter(([_,v]) => v !== undefined && v !== null && v !== "")
       .map(([k,v]) => `
-        <div class="item">
+        <div class="row">
           <div class="k">${escapeHtml(k)}</div>
           <div class="v">${escapeHtml(v)}</div>
         </div>
       `).join("");
 
-    if(!summary.innerHTML){
-      summary.innerHTML = `<div class="muted">Пока ничего нет. Заполни первый шаг.</div>`;
-    }
+    summary.innerHTML = rows || `<div class="muted">Пока ничего нет. Заполни первый шаг.</div>`;
   }
 
   const steps = [
@@ -347,53 +343,35 @@
       error: "ИНН должен состоять из 10 или 12 цифр."
     },
     {
-      key:"new_user",
-      title:"Новый пользователь?",
-      text:"Это первый лицензионный договор с РАО (льгота по минимальной сумме в первые периоды)?",
-      render: ()=> setInputSelect({label:"Новый пользователь", choices:["Нет","Да"], value:"Нет"}),
-      validate: (v)=> (v === "Да"),  // вернёт true/false
-      error:""
-    },
-    {
-      key:"year",
-      title:"Год расчёта",
-      text:"Введите год (например 2024). Можно оставить пустым или поставить «-».",
-      render: ()=> setInputText({label:"Год", placeholder:"например 2024 (пусто или - = нет данных)"}),
-      validate: (v)=>{
-        if(isEmptyOrDash(v)) return null;
-        const n = parseIntMaybe(v);
-        if(!Number.isInteger(n) || n < 1900 || n > 2100) return null;
-        return n;
-      },
-      error:"Введите год числом от 1900 до 2100, или оставьте пустым/«-»."
-    },
-    {
       key:"base_type",
       title:"Финансовая база",
-      text:"Выберите, от чего считаем процент: доходы за квартал / годовая выручка / расходы за квартал (ветка госструктуры) / нет данных.",
+      text:"Что есть у пользователя для расчёта процента?",
       render: ()=> setInputSelect({
-        label:"Тип базы",
+        label:"Выберите базу",
         choices:[
-          "Доход за квартал",
-          "Годовая выручка",
-          "Расходы за квартал (госструктура)",
+          "Доходы за квартал",
+          "Годовая выручка/доход",
+          "Расходы за квартал (если нет доходов)",
           "Нет данных"
         ],
-        value: "Доход за квартал"
+        value: (A.base_type === "revenue_q") ? "Доходы за квартал"
+             : (A.base_type === "annual_revenue") ? "Годовая выручка/доход"
+             : (A.base_type === "expenses_q") ? "Расходы за квартал (если нет доходов)"
+             : "Нет данных"
       }),
       validate: (v)=>{
-        if(v === "Доход за квартал") return "revenue_q";
-        if(v === "Годовая выручка") return "annual_revenue";
-        if(v === "Расходы за квартал (госструктура)") return "expenses_q";
-        if(v === "Нет данных") return "none";
+        if(v === "Доходы за квартал") return "revenue_q";
+        if(v === "Годовая выручка/доход") return "annual_revenue";
+        if(v === "Расходы за квартал (если нет доходов)") return "expenses_q";
+        if(v === "Нет данных") return null;
         return null;
       },
-      error:"Выберите вариант базы."
+      error:"Выберите вариант."
     },
     {
       key:"revenue_q",
-      title:"Доход за квартал",
-      text:"Введите сумму дохода за квартал (число ≥ 0). Пусто/«-» = нет данных.",
+      title:"Доходы за квартал",
+      text:"Введите доходы за квартал (число ≥ 0). Пусто/«-» = нет данных.",
       when: ()=> A.base_type === "revenue_q",
       render: ()=> setInputText({label:"Доход за квартал", placeholder:"например 1250000 (пусто или - = нет данных)"}),
       validate: (v)=>{
@@ -409,7 +387,7 @@
       title:"Годовая выручка",
       text:"Введите сумму годовой выручки/дохода (число ≥ 0). Пусто/«-» = нет данных.",
       when: ()=> A.base_type === "annual_revenue",
-      render: ()=> setInputText({label:"Годовая выручка", placeholder:"например 33986000 (пусто или - = нет данных)"}),
+      render: ()=> setInputText({label:"Годовая выручка", placeholder:"например 5000000 (пусто или - = нет данных)"}),
       validate: (v)=>{
         const n = parseFloatMaybe(v);
         if(n === null) return null;
@@ -421,9 +399,9 @@
     {
       key:"expenses_q",
       title:"Расходы за квартал",
-      text:"Введите сумму расходов за квартал (число ≥ 0). Используется только если выбрана база «расходы». Пусто/«-» = нет данных.",
+      text:"Введите расходы за квартал (число ≥ 0). Пусто/«-» = нет данных.",
       when: ()=> A.base_type === "expenses_q",
-      render: ()=> setInputText({label:"Расходы за квартал", placeholder:"например 1234567 (пусто или - = нет данных)"}),
+      render: ()=> setInputText({label:"Расходы за квартал", placeholder:"например 900000 (пусто или - = нет данных)"}),
       validate: (v)=>{
         const n = parseFloatMaybe(v);
         if(n === null) return null;
@@ -435,10 +413,9 @@
     {
       key:"internet_resources",
       title:"Интернет-ресурсы",
-      text:"Количество интернет-ресурсов со стримингом. Если нет — 0.",
+      text:"Сколько интернет-ресурсов (0–1000)?",
       render: ()=> setInputText({label:"Интернет-ресурсы", placeholder:"0", value: (A.internet_resources ?? 0)}),
       validate: (v)=>{
-        // для этого поля пусто/«-» не разрешаем — пусть будет 0
         const n = parseIntMaybe(v);
         if(!Number.isInteger(n) || n < 0 || n > 1000) return null;
         return n;
@@ -446,24 +423,51 @@
       error:"Введите целое число от 0 до 1000."
     },
     {
+      key:"worked_before",
+      title:"Пользователь ранее работал с РАО?",
+      text:"Если пользователь уже заключал договор(ы) с РАО раньше — выбери «Да». Если это первый договор — «Нет».",
+      render: ()=> setInputSelect({label:"Ранее работал с РАО?", choices:["Да","Нет"], value:(A.worked_before === true ? "Да" : "Нет")}),
+      validate: (v)=> (v === "Да"),
+      error:"Выберите «Да» или «Нет»."
+    },
+    {
       key:"contract_quarter",
       title:"Квартал договора",
-      text:"Номер квартала действия договора (1–4).",
+      text:"Номер квартала действия договора (1–4). Этот вопрос нужен только для нового пользователя.",
+      when: ()=> A.worked_before === false,
       render: ()=> setInputSelect({label:"Квартал договора", choices:["1","2","3","4"], value: String(A.contract_quarter ?? 1)}),
       validate: (v)=> parseInt(v,10),
+      error:"Выберите квартал 1–4."
     },
     {
       key:"contract_media",
       title:"Среда договора",
-      text:"Выберите среду договора (влияет на минималку).",
-      render: ()=> setInputSelect({label:"Среда договора", choices:["auto","cable","air","both"], value:(A.contract_media ?? "auto")}),
-      validate: (v)=> ["auto","cable","air","both"].includes(v) ? v : null,
-      error:"Выберите: auto/cable/air/both."
+      text:"Выберите среду договора (влияет на минимальную сумму).",
+      render: ()=> setInputSelect({label:"Среда договора", choices:[
+        "Авто (как в лицензиях)",
+        "В эфире",
+        "По кабелю",
+        "Одновременно в эфире и по кабелю"
+      ], value: (()=>{
+        const v = (A.contract_media ?? "auto");
+        return (v==="auto") ? "Авто (как в лицензиях)" :
+               (v==="air") ? "В эфире" :
+               (v==="cable") ? "По кабелю" :
+               "Одновременно в эфире и по кабелю";
+      })()}),
+      validate: (v)=>{
+        if(v === "Авто (как в лицензиях)") return "auto";
+        if(v === "В эфире") return "air";
+        if(v === "По кабелю") return "cable";
+        if(v === "Одновременно в эфире и по кабелю") return "both";
+        return null;
+      },
+      error:"Выберите один из вариантов."
     },
     {
       key:"small_income_mode",
       title:"Ветка малого дохода",
-      text:"Оставить авто-режим или принудительно включить/выключить ветку малого дохода.",
+      text:"Оставить авто-выбор ветки малого дохода, либо принудительно включить/выключить?",
       render: ()=> setInputSelect({label:"Режим", choices:["auto","force_on","force_off"], value:(A.small_income_mode ?? "auto")}),
       validate: (v)=> ["auto","force_on","force_off"].includes(v) ? v : null,
       error:"Выберите: auto / force_on / force_off."
@@ -477,21 +481,21 @@
     },
     {
       key:"population_override",
-      title:"Территория по письму",
-      text:"Если фактическая территория отличается от РКН — введите население. Иначе оставьте пустым или поставьте «-».",
+      title:"Территория отличается от заявленной в лицензии?",
+      text:"Если фактическая территория отличается от заявленной в лицензии — введите население территории вещания. Иначе оставьте пустым или поставьте «-».",
       render: ()=> setInputText({label:"Население (опционально)", placeholder:"например 978500 (пусто / - = нет данных)"}),
       validate: (v)=>{
         if(isEmptyOrDash(v)) return null;
         const n = parseIntMaybe(v);
-        if(!Number.isInteger(n) || n < 0 || n > 2000000000) return null;
+        if(!Number.isInteger(n) || n < 0) return null;
         return n;
       },
-      error:"Введите целое число населения, или оставьте пустым/«-»."
+      error:"Введите целое число ≥ 0, или оставьте пустым/«-»."
     },
     {
       key:"have_past",
       title:"Платежи за прошлый год",
-      text:"Есть сумма фактических платежей по проценту за прошлый год (для «гильотины», шаг D3)?",
+      text:"Есть сумма фактических платежей по проценту за прошлый год (для правила «гильотины»)?",
       render: ()=> setInputSelect({label:"Есть данные?", choices:["Нет","Да"], value:"Нет"}),
       validate: (v)=> (v === "Да"),
     },
@@ -510,7 +514,15 @@
       error:"Введите число ≥ 0, или оставьте пустым/«-»."
     },
     {
-      key:"_finish",
+      key:"assoc_member",
+      title:"Член отраслевой ассоциации?",
+      text:"Является ли пользователь членом отраслевой ассоциации (применяется понижающий коэффициент к минимальной сумме)?",
+      render: ()=> setInputSelect({label:"Член ассоциации?", choices:["Нет","Да"], value:(A.assoc_member === true ? "Да" : "Нет")}),
+      validate: (v)=> (v === "Да"),
+      error:"Выберите «Да» или «Нет»."
+    },
+    {
+      key:"__finish__",
       title:"Готово к расчёту",
       text:"Проверь данные справа. Нажми «Далее» — запущу расчёт и покажу результат.",
       render: ()=> { inputBox.innerHTML = `<div class="muted">Нажмите «Далее», чтобы выполнить расчёт.</div>`; },
@@ -522,72 +534,63 @@
   const history = [];
 
   function currentStep(){ return steps[idx]; }
-  function visibleStepsCount(){ return steps.length; }
 
   function updateProgress(){
     const stepNo = history.length + 1;
-    stepPill.textContent = `Шаг ${stepNo}`;
-    const pct = Math.min(100, Math.round(((stepNo-1) / (visibleStepsCount()-1)) * 100));
-    progressBar.style.width = pct + "%";
-    progressLabel.textContent = pct + "%";
-    backBtn.disabled = history.length === 0;
+    const total = steps.filter(s => (s.when ? s.when() : true)).length;
+    document.getElementById("progressText").textContent = `Шаг ${Math.min(stepNo,total)} из ${total}`;
+    document.getElementById("progressLine").style.width = `${Math.min(100, Math.round((Math.min(stepNo,total)/total)*100))}%`;
   }
 
   function render(){
-    showError("");
-    const s = currentStep();
-    qTitle.textContent = s.title;
-    qText.textContent = s.text;
-    s.render();
+    const step = currentStep();
+    if(step.when && !step.when()){
+      idx++;
+      return render();
+    }
+    qTitle.textContent = step.title;
+    qText.textContent = step.text || "";
+    setError("");
+
+    step.render?.();
+
     updateSummary();
     updateProgress();
+
+    prevBtn.disabled = history.length === 0;
+    nextBtn.textContent = (step.key === "__finish__") ? "Рассчитать" : "Далее";
   }
 
-  function findNextIndex(fromIdx){
-    let j = fromIdx + 1;
-    while(j < steps.length){
-      const st = steps[j];
-      if(!st.when || st.when()) return j;
-      j++;
-    }
-    return steps.length - 1;
+  function applyValue(step, raw){
+    if(step.key === "__finish__") return;
+    A[step.key] = raw;
   }
 
-  function findPrevIndex(){
-    if(history.length === 0) return idx;
-    return history.pop();
-  }
-
-  function setAnswer(key, value){
-    if(key === "_finish") return;
-    A[key] = value;
-  }
-
-  function clearFinancialFields(){
-    delete A.revenue_q;
-    delete A.annual_revenue;
-    delete A.expenses_q;
+  function back(){
+    if(history.length === 0) return;
+    const prev = history.pop();
+    idx = prev;
+    render();
   }
 
   async function runCalc(){
+    output.textContent = "";
     spin.style.display = "inline-block";
-    nextBtn.disabled = true;
-    backBtn.disabled = true;
-    restartBtn.disabled = true;
-    output.textContent = "Считаю…";
 
     const payload = {
       inn: A.inn,
-      year: (A.year ?? null),
 
-      annual_revenue: null,
-      revenue_q: null,
-      expenses_q: null,
+      annual_revenue: (A.annual_revenue ?? null),
+      revenue_q: (A.revenue_q ?? null),
+      expenses_q: (A.expenses_q ?? null),
 
       internet_resources: (A.internet_resources ?? 0),
-      contract_quarter: (A.contract_quarter ?? 1),
+
+      contract_quarter: (A.worked_before === false ? (A.contract_quarter ?? 1) : 1),
       contract_media: (A.contract_media ?? "auto"),
-      new_user: (A.new_user ?? false),
+
+      new_user: (A.worked_before === false),
+      assoc_member: (A.assoc_member ?? false),
 
       only_license: (A.only_license ?? null),
       population_override: (A.population_override ?? null),
@@ -610,7 +613,11 @@
       let text;
       try{
         const data = await res.json();
-        text = data.output ?? JSON.stringify(data, null, 2);
+        if(data && data.ok){
+          text = data.text;
+        }else{
+          text = (data && data.error) ? data.error : JSON.stringify(data, null, 2);
+        }
       }catch{
         text = await res.text();
       }
@@ -620,75 +627,38 @@
       output.textContent = "Ошибка запроса к серверу: " + (e?.message ?? String(e));
     }finally{
       spin.style.display = "none";
-      nextBtn.disabled = false;
-      backBtn.disabled = (history.length === 0);
-      restartBtn.disabled = false;
     }
   }
 
-  nextBtn.addEventListener("click", async ()=>{
-    showError("");
-    const s = currentStep();
-    const raw = getInputValue();
+  function next(){
+    const step = currentStep();
+    if(step.when && !step.when()){
+      idx++;
+      return next();
+    }
 
-    const parsed = s.validate ? s.validate(raw) : raw;
-    if(parsed === null && s.key === "inn"){
-      showError(s.error || "Проверьте ввод.");
-      return;
-    }
-    if(parsed === null && (s.key === "internet_resources")){
-      showError(s.error || "Проверьте ввод.");
-      return;
-    }
-    if(parsed === null && s.key !== "_finish" && s.error && !isEmptyOrDash(raw)){
-      // если не пусто/не дефис — показываем ошибку
-      showError(s.error);
+    if(step.key === "__finish__"){
+      runCalc();
       return;
     }
 
-    if(s.key === "_finish"){
-      await runCalc();
+    const v = getUserInput();
+    const parsed = step.validate ? step.validate(v) : v;
+
+    if(parsed === null){
+      setError(step.error || "Проверь значение.");
       return;
     }
 
-    if(s.key === "base_type"){
-      clearFinancialFields();
-      setAnswer(s.key, parsed);
-    } else {
-      setAnswer(s.key, parsed);
-    }
-
-    if(s.key === "have_past") A.have_past = (raw === "Да");
-
+    applyValue(step, parsed);
     history.push(idx);
-    idx = findNextIndex(idx);
-    render();
-  });
+    idx++;
 
-  backBtn.addEventListener("click", ()=>{
-    showError("");
-    idx = findPrevIndex();
     render();
-  });
+  }
 
-  restartBtn.addEventListener("click", ()=>{
-    for(const k of Object.keys(A)) delete A[k];
-    idx = 0;
-    history.length = 0;
-    output.textContent = "Результат появится здесь после расчёта.";
-    render();
-  });
-
-  copyBtn.addEventListener("click", async ()=>{
-    try{
-      await navigator.clipboard.writeText(output.textContent);
-      copyBtn.textContent = "Скопировано ✓";
-      setTimeout(()=> copyBtn.textContent = "Скопировать", 900);
-    }catch{
-      copyBtn.textContent = "Не удалось";
-      setTimeout(()=> copyBtn.textContent = "Скопировать", 900);
-    }
-  });
+  prevBtn.addEventListener("click", back);
+  nextBtn.addEventListener("click", next);
 
   render();
 </script>
