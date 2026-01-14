@@ -260,6 +260,7 @@
 
   function setError(msg){
     errBox.textContent = msg || "";
+    errBox.style.display = msg ? "block" : "none";
   }
 
   function setInputText({label, placeholder="", value=""}){
@@ -315,6 +316,12 @@
       (A.base_type === "expenses_q") ? A.expenses_q :
       "не указана";
 
+    const smallLabel =
+      (A.small_income_mode === "force_on") ? "Принудительно включить" :
+      (A.small_income_mode === "force_off") ? "Принудительно выключить" :
+      (A.small_income_mode === "auto") ? "Авто" :
+      A.small_income_mode;
+
     const items = [
       ["ИНН", A.inn],
       [baseLabel, baseValue],
@@ -323,9 +330,9 @@
       ...(A.worked_before===false ? [["Квартал договора", A.contract_quarter]] : []),
       ["Среда договора", mediaLabel(A.contract_media ?? "auto")],
       ["Член отраслевой ассоциации", (A.assoc_member===true ? "Да" : (A.assoc_member===false ? "Нет" : undefined))],
-      ["Ветка малого дохода", A.small_income_mode],
+      ["Ветка малого дохода", smallLabel],
       ["Только лицензия", A.only_license],
-      ["Территория отличается от лицензии (население)", A.population_override],
+      ["Население (если территория отличается)", A.population_override],
       ["Есть платежи за прошлый год", (A.have_past===true ? "Да" : (A.have_past===false ? "Нет" : undefined))],
       ["Сумма платежей за прошлый год", A.past_year_percent_paid],
     ];
@@ -380,44 +387,41 @@
     {
       key:"revenue_q",
       title:"Доходы за квартал",
-      text:"Введите доходы за квартал (число ≥ 0). Пусто/«-» = нет данных.",
+      text:"Введите доходы за квартал (число ≥ 0). Если данных нет — поставьте «-».",
       when: ()=> A.base_type === "revenue_q",
-      render: ()=> setInputText({label:"Доход за квартал", placeholder:"например 1250000 (пусто или - = нет данных)"}),
+      render: ()=> setInputText({label:"Доход за квартал", placeholder:"например 1250000 или -"}),
       validate: (v)=>{
         const n = parseFloatMaybe(v);
         if(n === null) return null;
-        if(!Number.isFinite(n) || n < 0) return null;
-        return n;
+        return (n >= 0) ? n : null;
       },
-      error:"Введите число ≥ 0, или оставьте пустым/«-»."
+      error:"Введите число ≥ 0 или «-»."
     },
     {
       key:"annual_revenue",
       title:"Годовая выручка",
-      text:"Введите сумму годовой выручки/дохода (число ≥ 0). Пусто/«-» = нет данных.",
+      text:"Введите сумму годовой выручки/дохода (число ≥ 0). Если данных нет — поставьте «-».",
       when: ()=> A.base_type === "annual_revenue",
-      render: ()=> setInputText({label:"Годовая выручка", placeholder:"например 5000000 (пусто или - = нет данных)"}),
+      render: ()=> setInputText({label:"Годовая выручка", placeholder:"например 5000000 или -"}),
       validate: (v)=>{
         const n = parseFloatMaybe(v);
         if(n === null) return null;
-        if(!Number.isFinite(n) || n < 0) return null;
-        return n;
+        return (n >= 0) ? n : null;
       },
-      error:"Введите число ≥ 0, или оставьте пустым/«-»."
+      error:"Введите число ≥ 0 или «-»."
     },
     {
       key:"expenses_q",
       title:"Расходы за квартал",
-      text:"Введите расходы за квартал (число ≥ 0). Пусто/«-» = нет данных.",
+      text:"Введите расходы за квартал (число ≥ 0). Если данных нет — поставьте «-».",
       when: ()=> A.base_type === "expenses_q",
-      render: ()=> setInputText({label:"Расходы за квартал", placeholder:"например 900000 (пусто или - = нет данных)"}),
+      render: ()=> setInputText({label:"Расходы за квартал", placeholder:"например 900000 или -"}),
       validate: (v)=>{
         const n = parseFloatMaybe(v);
         if(n === null) return null;
-        if(!Number.isFinite(n) || n < 0) return null;
-        return n;
+        return (n >= 0) ? n : null;
       },
-      error:"Введите число ≥ 0, или оставьте пустым/«-»."
+      error:"Введите число ≥ 0 или «-»."
     },
     {
       key:"internet_resources",
@@ -446,7 +450,7 @@
     {
       key:"contract_quarter",
       title:"Квартал договора",
-      text:"Номер квартала действия договора (1–4). Этот вопрос нужен только для нового пользователя.",
+      text:"Номер квартала действия договора (1–4). Этот вопрос нужен только если ранее НЕ работал с РАО.",
       when: ()=> A.worked_before === false,
       render: ()=> setInputSelect({
         label:"Квартал договора",
@@ -483,49 +487,47 @@
       error:"Выберите один из вариантов."
     },
     {
-  key:"small_income_mode",
-  title:"Ветка малого дохода",
-  text:"Выберите режим расчёта.",
-  render: ()=> setInputSelect({
-    label:"Режим",
-    choices:["Авто","Принудительно включить","Принудительно выключить"],
-    value: (()=>{
-      const v = (A.small_income_mode ?? "auto");
-      if(v === "force_on") return "Принудительно включить";
-      if(v === "force_off") return "Принудительно выключить";
-      return "Авто";
-    })()
-  }),
-  validate: (v)=>{
-    if(v === "Авто") return "auto";
-    if(v === "Принудительно включить") return "force_on";
-    if(v === "Принудительно выключить") return "force_off";
-    return null;
-  },
-  error:"Выберите режим."
-  },
-  {
-  key:"only_license",
-  title:"Ограничение лицензией",
-  text:"Если нужно посчитать только одну лицензию — введите её ID. Если не нужно — поставьте «-».",
-  render: ()=> setInputText({label:"Только лицензия (опционально)", placeholder:"ID лицензии или -"}),
-  validate: (v)=> isEmptyOrDash(v) ? null : v.trim()
-  },
-
-   {
-  key:"population_override",
-  title:"Территория отличается от заявленной в лицензии?",
-  text:"Если да — введите население территории вещания. Если нет — поставьте «-».",
-  render: ()=> setInputText({label:"Население (опционально)", placeholder:"например 978500 или -"}),
-  validate: (v)=>{
-    if(isEmptyOrDash(v)) return null;
-    const n = parseIntMaybe(v);
-    if(!Number.isInteger(n) || n < 0) return null;
-    return n;
-  },
-  error:"Введите целое число ≥ 0, или поставьте «-»."
-},
-
+      key:"small_income_mode",
+      title:"Ветка малого дохода",
+      text:"Выберите режим расчёта.",
+      render: ()=> setInputSelect({
+        label:"Режим",
+        choices:["Авто","Принудительно включить","Принудительно выключить"],
+        value: (()=>{
+          const v = (A.small_income_mode ?? "auto");
+          if(v === "force_on") return "Принудительно включить";
+          if(v === "force_off") return "Принудительно выключить";
+          return "Авто";
+        })()
+      }),
+      validate: (v)=>{
+        if(v === "Авто") return "auto";
+        if(v === "Принудительно включить") return "force_on";
+        if(v === "Принудительно выключить") return "force_off";
+        return null;
+      },
+      error:"Выберите режим."
+    },
+    {
+      key:"only_license",
+      title:"Ограничение лицензией",
+      text:"Если нужно посчитать только одну лицензию — введите её ID. Если не нужно — поставьте «-».",
+      render: ()=> setInputText({label:"Только лицензия (опционально)", placeholder:"ID лицензии или -"}),
+      validate: (v)=> isEmptyOrDash(v) ? null : v.trim()
+    },
+    {
+      key:"population_override",
+      title:"Территория отличается от заявленной в лицензии?",
+      text:"Если да — введите население территории вещания. Если нет — поставьте «-».",
+      render: ()=> setInputText({label:"Население (опционально)", placeholder:"например 978500 или -"}),
+      validate: (v)=>{
+        if(isEmptyOrDash(v)) return null;
+        const n = parseIntMaybe(v);
+        if(!Number.isInteger(n) || n < 0) return null;
+        return n;
+      },
+      error:"Введите целое число ≥ 0 или «-»."
+    },
     {
       key:"have_past",
       title:"Платежи за прошлый год",
@@ -534,21 +536,17 @@
       validate: (v)=> (v === "Да"),
     },
     {
-  key:"past_year_percent_paid",
-  title:"Сумма платежей за прошлый год",
-  text:"Введите сумму (число ≥ 0). Если данных нет — поставьте «-».",
-  when: ()=> A.have_past === true,
-  render: ()=> setInputText({label:"Платежи за прошлый год", placeholder:"например 150000 или -"}),
-  validate: (v)=>{
-    const n = parseFloatMaybe(v);
-    if(n === null) return null;
-    if(!Number.isFinite(n) || n < 0) return null;
-    return n;
-  },
-  error:"Введите число ≥ 0, или поставьте «-»."
-},
-
-      error:"Введите число ≥ 0, или оставьте пустым/«-»."
+      key:"past_year_percent_paid",
+      title:"Сумма платежей за прошлый год",
+      text:"Введите сумму (число ≥ 0). Если данных нет — поставьте «-».",
+      when: ()=> A.have_past === true,
+      render: ()=> setInputText({label:"Платежи за прошлый год", placeholder:"например 150000 или -"}),
+      validate: (v)=>{
+        const n = parseFloatMaybe(v);
+        if(n === null) return null;
+        return (n >= 0) ? n : null;
+      },
+      error:"Введите число ≥ 0 или «-»."
     },
     {
       key:"assoc_member",
@@ -721,7 +719,6 @@
       copyBtn.textContent = "Скопировано";
       setTimeout(()=> copyBtn.textContent = "Скопировать", 900);
     }catch{
-      // fallback
       const ta = document.createElement("textarea");
       ta.value = output.textContent || "";
       document.body.appendChild(ta);
