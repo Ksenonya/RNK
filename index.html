@@ -665,8 +665,10 @@
     if(A.base_type === "revenue_q") payload.revenue_q = (A.revenue_q ?? null);
     if(A.base_type === "expenses_q") payload.expenses_q = (A.expenses_q ?? null);
 
-    try{
-      const res = await fetch("/api/calc", {
+    try {
+    const API_BASE = "https://rnk-wof7.onrender.com"; // <-- сюда вставь свой Render URL
+  
+    const res = await fetch(`${API_BASE}/api/calc`, {
       method: "POST",
       headers: {"Content-Type":"application/json"},
       body: JSON.stringify(payload)
