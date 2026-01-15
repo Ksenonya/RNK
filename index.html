@@ -142,7 +142,7 @@
   <div class="wrap">
     <div class="topbar">
       <div class="brand">
-        <h1>RAO — Расчёт (веб-форма)</h1>
+        <h1>РАО — Расчёт (веб-форма)</h1>
         <p>Пошаговый ввод данных. Пустое поле <b>или</b> «- / — / нет» = <b>нет данных</b>.</p>
       </div>
       <div class="pill">API: /api/calc</div>
@@ -667,10 +667,11 @@
 
     try{
       const res = await fetch("/api/calc", {
-        method: "POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify(payload)
-      });
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(payload)
+    });
+
       const raw = await res.text();
       let text;
       
