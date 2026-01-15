@@ -455,21 +455,22 @@
       error:"Выберите «Да» или «Нет»."
     },
     {
-      key:"contract_quarter",
-      title:"Квартал договора",
-      text:"Номер квартала действия договора (1–4). Этот вопрос нужен только если ранее НЕ работал с РАО.",
-      when: ()=> A.worked_before === false,
-      render: ()=> setInputSelect({
-        label:"Квартал договора",
-        choices:["1","2","3","4"],
-        value: String(A.contract_quarter ?? 1)
-      }),
-      validate: (v)=> {
-        const n = parseInt(v,10);
-        return (n>=1 && n<=4) ? n : null;
-      },
-      error:"Выберите квартал 1–4."
+    key:"contract_quarter",
+    title:"Квартал договора",
+    text:"Номер квартала действия договора (1–4). Этот вопрос нужен только если ранее РАБОТАЛ с РАО.",
+    when: ()=> A.worked_before === true,
+    render: ()=> setInputSelect({
+      label:"Квартал договора",
+      choices:["1","2","3","4"],
+      value: String(A.contract_quarter ?? 1)
+    }),
+    validate: (v)=> {
+      const n = parseInt(v,10);
+      return (n>=1 && n<=4) ? n : null;
     },
+    error:"Выберите квартал 1–4."
+},
+
     {
       key:"contract_media",
       title:"Среда договора",
@@ -647,7 +648,7 @@
 
       internet_resources: (A.internet_resources ?? 0),
 
-      contract_quarter: (A.worked_before === false ? (A.contract_quarter ?? 1) : 1),
+      contract_quarter: (A.worked_before === true ? (A.contract_quarter ?? 1) : 1),
       contract_media: (A.contract_media ?? "auto"),
 
       new_user: (A.worked_before === false),
@@ -670,18 +671,21 @@
         headers: {"Content-Type":"application/json"},
         body: JSON.stringify(payload)
       });
-
+      const raw = await res.text();
       let text;
+      
       try{
-        const data = await res.json();
+        const data = JSON.parse(raw);
         if(data && data.ok){
           text = data.text;
         }else{
-          text = (data && data.error) ? data.error : JSON.stringify(data, null, 2);
+          text = (data && data.error) ? data.error : raw;
         }
       }catch{
-        text = await res.text();
+        // если сервер вернул не JSON (например, plain text/HTML)
+        text = raw;
       }
+      
       output.textContent = text;
 
     }catch(e){
