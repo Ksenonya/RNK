@@ -680,30 +680,10 @@ def compute_min_total(
         details["steps"].append({"step": "C4", "n_licenses": n_lic, "coeff": k, "min_after": min_total})
         notes.append(f"Применена скидка по числу лицензий (кол-во ВЛ={n_lic}).")
 
-    # Понижающие коэффициенты к минимальной сумме
-    if new_user_only:
-        if media_for_agg == "Одновременно в эфире и по кабелю":
-            k_new = down_coeff("одновременно", 1.0)
-        else:
-            k_new = down_coeff("Новый пользователь, заключающий", 1.0)
-        if k_new != 1.0:
-            min_total *= k_new
-            details["steps"].append({"step": "DOWN_NEW_USER", "coeff": k_new, "min_after": min_total})
-            notes.append("Применён понижающий коэффициент для нового пользователя.")
-    if assoc_member:
-        k_assoc = down_coeff("ассоциаци", 1.0)
-        if k_assoc != 1.0:
-            min_total *= k_assoc
-            details["steps"].append({"step": "DOWN_ASSOC", "coeff": k_assoc, "min_after": min_total})
-            notes.append("Применён понижающий коэффициент для члена отраслевой ассоциации.")
-
-    # Коэффициент по периодам договора применяется только для нового пользователя
-    k_period = contract_period_coeff(period_df, contract_quarter) if new_user_only else 1.0
-    if new_user_only and k_period != 1.0:
-        min_total *= k_period
-        details["steps"].append({"step": "E1(period)", "contract_quarter": contract_quarter, "coeff": k_period, "min_after": min_total})
-        notes.append("Применён коэффициент по периоду действия договора (для нового пользователя).")
-
+    # ВАЖНО: в примерах расчёта РАО понижающие коэффициенты (новый пользователь/период договора/ассоциация)
+    # к минимальной сумме НЕ применяются. Минималка берётся из таблицы по численности населения (и среде)
+    # с учётом скидки по числу лицензий (если применимо) и далее — возможной надбавки за интернет-ресурсы.
+    k_period = 1.0  # оставлено для совместимости с логикой «гильотины»
     if internet_resources and internet_resources > 0:
         add_per = max(INTERNET_PCT * min_total, INTERNET_MIN_ADD)
         delta = add_per * internet_resources
@@ -727,16 +707,7 @@ def compute_min_total(
                     alt = alt1
                     if n_lic > 3:
                         alt *= discount_by_licenses(disc_df, n_lic)
-                    # применяем те же коэффициенты
-                    if new_user_only:
-                        if media_for_agg == "Одновременно в эфире и по кабелю":
-                            alt *= down_coeff("одновременно", 1.0)
-                        else:
-                            alt *= down_coeff("Новый пользователь, заключающий", 1.0)
-                    if assoc_member:
-                        alt *= down_coeff("ассоциаци", 1.0)
-                    if k_period != 1.0:
-                        alt *= k_period
+                    # Понижающие коэффициенты к минималке не применяются (см. примеры).
                     if internet_resources and internet_resources > 0:
                         add_per = max(INTERNET_PCT * alt, INTERNET_MIN_ADD)
                         alt += add_per * internet_resources
