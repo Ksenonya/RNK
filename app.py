@@ -141,6 +141,7 @@ def home():
 
 
 @app.post("/api/calc")
+@app.post("/api/calc/")
 def api_calc(req: CalcRequest):
     argv: List[str] = ["--inn", req.inn.strip(), "--non_interactive"]
 
