@@ -691,43 +691,6 @@ def compute_min_total(
         details["steps"].append({"step": "C6", "resources": internet_resources, "add_per_resource": add_per, "delta": delta, "min_after": min_total})
         notes.append("Добавлена доплата за интернет-вещание (+15%, но не менее 12 500 за ресурс).")
 
-    if percent_sum_q is not None:
-        if min_total > (1.0 + GUILLOTINE_PCT) * percent_sum_q:
-            details["steps"].append({"step": "D1", "min_total": min_total, "percent_sum_q": percent_sum_q})
-            notes.append("Сработала «гильотина»: минималка превышает расчёт по проценту более чем на 10%.")
-
-            N_sum = 0
-            for lic in licenses:
-                if lic.population_total is not None:
-                    N_sum += int(lic.population_total)
-
-            if N_sum > 0:
-                alt1 = lookup_min_sum(mins_df, N_sum, media_for_agg)
-                if alt1 is not None:
-                    alt = alt1
-                    if n_lic > 3:
-                        alt *= discount_by_licenses(disc_df, n_lic)
-                    # Понижающие коэффициенты к минималке не применяются (см. примеры).
-                    if internet_resources and internet_resources > 0:
-                        add_per = max(INTERNET_PCT * alt, INTERNET_MIN_ADD)
-                        alt += add_per * internet_resources
-
-                    details["steps"].append({"step": "D2", "N_sum": N_sum, "min_table": alt1, "min_after_adjust": alt})
-                    if alt <= (1.0 + GUILLOTINE_PCT) * percent_sum_q:
-                        min_total = alt
-                        notes.append("«Гильотина»: минималка пересчитана по суммарной численности населения и принята.")
-                    else:
-                        if past_year_percent_paid is not None:
-                            min_total = 0.25 * float(past_year_percent_paid)
-                            details["steps"].append({"step": "D3", "S_year": past_year_percent_paid, "k": 0.25, "min_after": min_total})
-                            notes.append("«Гильотина»: минималка рассчитана как 1/4 от платежей по проценту за прошлый год.")
-                        else:
-                            notes.append("Для второго шага «гильотины» нужна сумма платежей по проценту за прошлый год.")
-                else:
-                    notes.append("Не удалось выполнить «гильотину»: нет минималки по суммарной численности в таблице.")
-            else:
-                notes.append("Не удалось выполнить «гильотину»: нет суммарной численности населения.")
-
     return round(min_total, 2), details, notes
 
 
@@ -746,11 +709,14 @@ def format_report(
     revenue_q: Optional[float],
     expenses_q: Optional[float],
     internet_resources: int,
-    contract_quarter: int,
     new_user_only: bool,
     assoc_member: bool,
     licenses: List[License],
     contract_rate: float,
+    percent_sum_q_raw: Optional[float],
+    min_total_raw: Optional[float],
+    guillotine_info: Optional[Dict[str, Any]],
+    cfE: float,
     percent_sum_q: Optional[float],
     min_total: Optional[float],
     notes: List[str],
@@ -773,16 +739,15 @@ def format_report(
         lines.append("Финансовая база для расчёта процента: НЕ ЗАДАНА.")
     lines.append("")
 
-    lines.append(f"Отчетный период действия договора (квартал с начала договора): {contract_quarter}.")
-    lines.append(f"Ранее работал с РАО: {'да' if (not new_user_only) else 'нет'}.")
-    lines.append(f"Член отраслевой ассоциации: {'да' if assoc_member else 'нет'}.")
+    lines.append(f"Ранее работал с РАО: {'да' if (not new_user_only) else 'нет'}." )
+    lines.append(f"Член отраслевой ассоциации: {'да' if assoc_member else 'нет'}." )
     lines.append("")
 
     lines.append(f"Вещательные лицензии (по таблице РКН): {len(licenses)} шт.")
     for lic in licenses:
         pop = lic.population_total
         pop_str = f"{pop:,}".replace(",", " ") if pop is not None else "не найдено"
-        lines.append(f"— ID лицензии в выгрузке РКН: {lic.license_id}; среда: {lic.media_raw} → {lic.media_class}; население: {pop_str}.")
+        lines.append(f"— Номер лицензии (РКН): {lic.license_id}; среда: {lic.media_raw} → {lic.media_class}; население: {pop_str}.")
         lines.append(f"  РКН: {lic.rkn_url}")
         if lic.population_notes:
             for n in lic.population_notes[:2]:
@@ -802,9 +767,19 @@ def format_report(
     lines.append("")
     lines.append(f"Процентная ставка по договору (взвешенная по часам×населению): {contract_rate:.1f}%.")
     lines.append("")
+
     lines.append(f"Расчётная сумма по проценту за квартал: {money(percent_sum_q)} ₽.")
+    if percent_sum_q_raw is not None and cfE != 1.0:
+        lines.append(f"  (до льгот/стимулов: {money(percent_sum_q_raw)} ₽, cfE={cfE:.3f})")
     lines.append("")
-    lines.append(f"Минимальная сумма за квартал (по правилам/таблицам): {money(min_total)} ₽.")
+
+    lines.append(f"Минимальная сумма за квартал: {money(min_total)} ₽.")
+    if guillotine_info:
+        lines.append(
+            f"  (гильотина: {money(guillotine_info.get('min_before'))} → {money(guillotine_info.get('min_after'))} при %={money(guillotine_info.get('percent_sum_q'))} и coef={guillotine_info.get('coef')})"
+        )
+    if min_total_raw is not None and cfE != 1.0:
+        lines.append(f"  (до льгот/стимулов: {money(min_total_raw)} ₽, cfE={cfE:.3f})")
     lines.append("")
 
     if percent_sum_q is not None and min_total is not None:
@@ -832,8 +807,6 @@ def format_report(
         lines.append("")
 
     return "\n".join(lines)
-
-
 # --------------------------- main (non-interactive) ---------------------------
 
 def main(argv=None) -> int:
@@ -853,7 +826,6 @@ def main(argv=None) -> int:
     ap.add_argument("--assoc_member", action="store_true")
 
     ap.add_argument("--only_license", type=str, default=None)
-    ap.add_argument("--past_year_percent_paid", type=float, default=None)
 
     ap.add_argument("--rkn_xlsx", type=str, default="Таблица РКН.xlsx")
     ap.add_argument("--vars_xlsx", type=str, default="Переменные из ставок.xlsx")
@@ -955,15 +927,81 @@ def main(argv=None) -> int:
         licenses=licenses,
         vars_xlsx=vars_xlsx,
         annual_income_for_rules=annual_income_for_rules,
-        contract_quarter=args.contract_quarter,
+        contract_quarter=1,
         internet_resources=args.internet_resources,
-        past_year_percent_paid=args.past_year_percent_paid,
         percent_sum_q=percent_sum_q,
         contract_media=args.contract_media,
         use_small_income_branch=use_small_income,
         new_user_only=bool(args.new_user),
         assoc_member=bool(args.assoc_member),
     )
+
+    # --- «Гильотина» (не отдельный режим): ограничиваем минималку по сумме по проценту на уровне договора
+    guillotine_info = None
+    if min_total is not None and percent_sum_q is not None:
+        params_df = pd.read_excel(vars_xlsx, sheet_name="Параметры для расчетов")
+        sub = params_df[params_df["Наименование параметра для расчета авторского вознаграждения"].astype(str).str.contains("Коэффициент гильотины", case=False, na=False)]
+        guillotine_coef = float(sub.iloc[0]["Значение параметра"]) if not sub.empty else 1.0
+        min_before = float(min_total)
+        cap = float(percent_sum_q) * guillotine_coef
+        if min_before > cap:
+            min_total = cap
+            guillotine_info = {"min_before": min_before, "min_after": cap, "percent_sum_q": float(percent_sum_q), "coef": guillotine_coef}
+            notes.append(
+                f"Гильотина: ограничение минималки по % (min_before={min_before:.2f}, s_percent={float(percent_sum_q):.2f}, coef={guillotine_coef:.2f} → min_after={cap:.2f})."
+            )
+
+    # --- Блок E (льготы/стимулы): применяем ОДИНАКОВО к минималке и сумме по проценту
+    cfE = 1.0
+    try:
+        down_df = pd.read_excel(vars_xlsx, sheet_name="Понижающие коэффициенты")
+
+        def down_coeff(contains: str, default: float = 1.0) -> float:
+            col = "Условие применения понижающего коэффициента (описательное обозначение)"
+            if col not in down_df.columns:
+                return default
+            sub2 = down_df[down_df[col].astype(str).str.contains(contains, case=False, na=False)]
+            if sub2.empty:
+                return default
+            return float(sub2.iloc[0]["Понижающий коэффициент к минимальной сумме вознаграждения"])
+
+        # определяем среду договора для выбора коэффициента нового пользователя
+        media_classes = [lic.media_class for lic in licenses]
+        has_two_media = "Одновременно в эфире и по кабелю" in media_classes
+        if not has_two_media:
+            has_air = any("эфир" in (lic.media_raw or "").lower() or "назем" in (lic.media_raw or "").lower() for lic in licenses)
+            has_cable = any("кабель" in (lic.media_raw or "").lower() for lic in licenses)
+            has_two_media = bool(has_air and has_cable)
+        media_for_agg = "Одновременно в эфире и по кабелю" if has_two_media else "В эфире или по кабелю"
+        cm = (args.contract_media or "auto").lower().strip()
+        if cm in ("cable", "air"):
+            media_for_agg = "В эфире или по кабелю"
+        elif cm == "both":
+            media_for_agg = "Одновременно в эфире и по кабелю"
+
+        if bool(args.new_user):
+            if media_for_agg == "Одновременно в эфире и по кабелю":
+                k_new = down_coeff("одновременно", 1.0)
+            else:
+                k_new = down_coeff("Новый пользователь, заключающий", 1.0)
+            cfE *= float(k_new)
+        if bool(args.assoc_member):
+            k_assoc = down_coeff("ассоциаци", 1.0)
+            cfE *= float(k_assoc)
+
+    except Exception as e:
+        # если таблица/лист не найден — просто не применяем стимулы
+        cfE = 1.0
+
+    percent_sum_q_raw = percent_sum_q
+    min_total_raw = min_total
+
+    if cfE != 1.0:
+        if percent_sum_q is not None:
+            percent_sum_q = float(percent_sum_q) * cfE
+        if min_total is not None:
+            min_total = float(min_total) * cfE
+        notes.append(f"Блок E: применён коэффициент льгот/стимулов cfE={cfE:.3f} к проценту и минималке.")
     notes.extend(min_notes)
 
     p.tick("формирую отчёт")
@@ -974,11 +1012,14 @@ def main(argv=None) -> int:
         revenue_q=args.revenue_q,
         expenses_q=args.expenses_q,
         internet_resources=args.internet_resources,
-        contract_quarter=args.contract_quarter,
         new_user_only=bool(args.new_user),
         assoc_member=bool(args.assoc_member),
         licenses=licenses,
         contract_rate=contract_rate,
+        percent_sum_q_raw=percent_sum_q_raw,
+        min_total_raw=min_total_raw,
+        guillotine_info=guillotine_info,
+        cfE=cfE,
         percent_sum_q=percent_sum_q,
         min_total=min_total,
         notes=notes,
