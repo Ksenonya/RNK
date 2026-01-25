@@ -11,6 +11,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote
 
+from functools import lru_cache
+
+@lru_cache(maxsize=1)
+
 import openpyxl
 import pandas as pd
 
@@ -281,6 +285,31 @@ def iter_rkn_rows(rkn_xlsx: Path) -> Tuple[List[str], Any]:
 
     it = ws.iter_rows(min_row=2, max_col=max_col, values_only=True)
     return header, it
+
+
+def _inn_to_org_map(rkn_path: str, mtime: float) -> dict:
+    rkn_xlsx = Path(rkn_path)
+    header, it = iter_rkn_rows(rkn_xlsx)
+    idx = {h: i for i, h in enumerate(header)}
+
+    col_inn = idx.get("ns1:inn")
+    col_name = idx.get("ns1:org_name")
+    if col_inn is None or col_name is None:
+        return {}
+
+    out = {}
+    for row in it:
+        inn = str(row[col_inn] or "").strip()
+        if not inn:
+            continue
+        if inn not in out:
+            out[inn] = str(row[col_name] or "").strip()
+    return out
+
+def get_org_name_by_inn(rkn_xlsx: Path, inn: str) -> str:
+    mp = _inn_to_org_map(str(rkn_xlsx), rkn_xlsx.stat().st_mtime)
+    return (mp.get(inn) or "").strip()
+
 
 
 def build_rkn_url(license_id: str) -> str:
