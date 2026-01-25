@@ -135,6 +135,7 @@
     }
     @keyframes spin{ to{ transform: rotate(360deg);} }
     .muted{ color: var(--muted); font-size: 13px; }
+    
     #inputBox label { display: none; }
   </style>
 </head>
@@ -377,7 +378,7 @@
       ["Наименование", A.org_name],
       [baseLabel, baseValue],
       ["Интернет-ресурсы", A.internet_resources],
-      ["Ранее работал с РАО?", (A.worked_before===true ? "Да" : (A.worked_before===false ? "Нет" : undefined))],
+      ["Ранее работал с РАО?", (A.worked_before===true ? "Да" : (A.worked_before===false ? "Нет" : "Авто"))],
 ["Среда договора", mediaLabel(A.contract_media ?? "auto")],
       ["Член отраслевой ассоциации", (A.assoc_member===true ? "Да" : (A.assoc_member===false ? "Нет" : undefined))],
       ["Ветка малого дохода", smallLabel],
@@ -490,16 +491,16 @@
     {
       key:"worked_before",
       title:"Пользователь ранее работал с РАО?",
-      text:"Если пользователь уже заключал договор(ы) с РАО раньше — выбери «Да». Если это первый договор — «Нет». Если не уверены — выберите «Нет данных» (тогда коэффициенты нового пользователя не применяются).",
+      text:"Если пользователь уже заключал договор с РАО раньше — выберите «Да». Если это первый договор — «Нет». Если не хотите применять этот коэффициент — выберите «Авто».",
       render: ()=> setInputSelect({
         label:"Ранее работал с РАО?",
-        choices:["Нет данных","Да","Нет"],
-        value:(A.worked_before === true ? "Да" : (A.worked_before === false ? "Нет" : "Нет данных"))
+        choices:["Авто","Да","Нет"],
+        value:(A.worked_before === true ? "Да" : (A.worked_before === false ? "Нет" : "Авто"))
       }),
       validate: (v)=>{
         if(v === "Да") return true;
         if(v === "Нет") return false;
-        if(v === "Нет данных") return SKIP;
+        if(v === "Авто") return SKIP;
         return null;
       },
       error:"Выберите вариант."
@@ -508,7 +509,7 @@
     {
       key:"contract_media",
       title:"Среда договора",
-      text:"Выберите среду договора (влияет на минимальную сумму).",
+      text:"Выберите среду договора.",
       render: ()=> setInputSelect({
         label:"Среда договора",
         choices:[
@@ -529,38 +530,38 @@
       error:"Выберите один из вариантов."
     },
     {
-      key:"small_income_mode",
-      title:"Ветка малого дохода",
-      text:"Выберите режим расчёта.",
-      render: ()=> setInputSelect({
-        label:"Режим",
-        choices:["Авто","Принудительно включить","Принудительно выключить"],
-        value: (()=>{
-          const v = (A.small_income_mode ?? "auto");
-          if(v === "force_on") return "Принудительно включить";
-          if(v === "force_off") return "Принудительно выключить";
-          return "Авто";
-        })()
-      }),
-      validate: (v)=>{
-        if(v === "Авто") return "auto";
-        if(v === "Принудительно включить") return "force_on";
-        if(v === "Принудительно выключить") return "force_off";
-        return null;
-      },
-      error:"Выберите режим."
-    },
+  key:"small_income_mode",
+  title:"Применять ли коэффициент малого дохода?",
+  text:"Выберите режим расчёта.",
+  render: ()=> setInputSelect({
+    label:"Режим",
+    choices:["Авто","Включить","Выключить"],
+    value: (()=>{
+      const v = (A.small_income_mode ?? "auto");
+      if(v === "force_on") return "Включить";
+      if(v === "force_off") return "Выключить";
+      return "Авто";
+    })()
+  }),
+  validate: (v)=>{
+    if(v === "Авто") return "auto";
+    if(v === "Включить") return "force_on";
+    if(v === "Выключить") return "force_off";
+    return null;
+  },
+  error:"Выберите режим."
+},
     {
       key:"only_license",
       title:"Ограничение лицензией",
-      text:"Если нужно посчитать только одну лицензию — введите её НОМЕР (как в РКН, например Л033-...). Если не нужно — поставьте «-».",
+      text:"Если нужно посчитать только одну лицензию — введите её НОМЕР (как в РКН, например Л033-...).  Если не нужно — нажмите «Далее».",
       render: ()=> setInputText({label:"Только лицензия (номер, опционально)", placeholder:"номер лицензии или -"}),
       validate: (v)=> isEmptyOrDash(v) ? SKIP : v.trim()
     },
     {
       key:"population_override",
       title:"Территория отличается от заявленной в лицензии?",
-      text:"Если да — введите население территории вещания. Если нет — поставьте «-».",
+      text:"Если да — введите население территории вещания. Если не нужно — нажмите «Далее».",
       render: ()=> setInputText({label:"Население (опционально)", placeholder:"например 978500 или -"}),
       validate: (v)=>{
         if(isEmptyOrDash(v)) return SKIP;
@@ -573,7 +574,7 @@
     {
       key:"assoc_member",
       title:"Член отраслевой ассоциации?",
-      text:"Является ли пользователь членом отраслевой ассоциации (понижает минимальную сумму)?",
+      text:"Является ли пользователь членом отраслевой ассоциации?",
       render: ()=> setInputSelect({
         label:"Член ассоциации?",
         choices:["Нет","Да"],
