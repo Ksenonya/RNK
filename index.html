@@ -436,7 +436,7 @@
     {
     key:"revenue_q",
     title:"Доходы за квартал",
-    text:"Введите доходы за квартал (число ≥ 0). Если данных нет — поставьте «-».",
+    text:"Введите доходы за квартал. Если данных нет — нажмите «Далее».",
     when: ()=> A.base_type === "revenue_q",
     render: ()=> setInputText({label:"Доход за квартал", placeholder:"например 1250000 или -"}),
     validate: (v)=>{
@@ -479,7 +479,7 @@
     {
       key:"internet_resources",
       title:"Интернет-ресурсы",
-      text:"Сколько интернет-ресурсов (0–1000)?",
+      text:"Сколько интернет-ресурсов?",
       render: ()=> setInputText({label:"Интернет-ресурсы", placeholder:"0", value: (A.internet_resources ?? 0)}),
       validate: (v)=>{
         const n = parseIntMaybe(v);
