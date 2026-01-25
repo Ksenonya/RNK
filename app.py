@@ -14,9 +14,26 @@ except Exception:
     _V2 = False
 
 from rao import run_calc_capture, parse_inn, get_org_name_by_inn, fix_mojibake
+import rao as rao_mod
 
 BASE_DIR = Path(__file__).resolve().parent
 INDEX_HTML = BASE_DIR / "index.html"
+
+RAO_DIR = Path(rao_mod.__file__).resolve().parent
+
+def find_rkn_xlsx() -> Path:
+    candidates = [
+        BASE_DIR / "Таблица РКН.xlsx",
+        RAO_DIR / "Таблица РКН.xlsx",
+        Path.cwd() / "Таблица РКН.xlsx",
+    ]
+    for p in candidates:
+        if p.exists():
+            return p
+    raise FileNotFoundError(
+        "Не найден файл 'Таблица РКН.xlsx'. "
+        f"Пробовал: {[str(c) for c in candidates]}"
+    )
 
 app = FastAPI()
 
@@ -147,12 +164,13 @@ def api_inninfo(inn: str):
     except Exception as e:
         return JSONResponse(status_code=400, content={"ok": False, "error": str(e)})
 
-    rkn_xlsx = BASE_DIR / "Таблица РКН.xlsx"
-    if not rkn_xlsx.exists():
-        return JSONResponse(status_code=500, content={"ok": False, "error": "Не найден файл РКН рядом с приложением"})
+    try:
+        rkn_xlsx = find_rkn_xlsx()
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
 
     org_name = get_org_name_by_inn(rkn_xlsx, inn_clean)
-    org_name = fix_mojibake(org_name)  # ✅ ВОТ ЭТО
+    org_name = fix_mojibake(org_name)
 
     if not org_name:
         return JSONResponse(status_code=404, content={"ok": False, "org_name": ""})
