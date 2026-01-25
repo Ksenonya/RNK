@@ -13,8 +13,6 @@ from urllib.parse import quote
 
 from functools import lru_cache
 
-@lru_cache(maxsize=1)
-
 import openpyxl
 import pandas as pd
 
@@ -286,7 +284,7 @@ def iter_rkn_rows(rkn_xlsx: Path) -> Tuple[List[str], Any]:
     it = ws.iter_rows(min_row=2, max_col=max_col, values_only=True)
     return header, it
 
-
+@lru_cache(maxsize=1)
 def _inn_to_org_map(rkn_path: str, mtime: float) -> dict:
     rkn_xlsx = Path(rkn_path)
     header, it = iter_rkn_rows(rkn_xlsx)
