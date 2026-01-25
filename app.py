@@ -13,7 +13,7 @@ except Exception:
     from pydantic import validator as field_validator  # type: ignore
     _V2 = False
 
-from rao import run_calc_capture, parse_inn, get_org_name_by_inn
+from rao import run_calc_capture, parse_inn, get_org_name_by_inn, fix_mojibake
 
 BASE_DIR = Path(__file__).resolve().parent
 INDEX_HTML = BASE_DIR / "index.html"
@@ -152,6 +152,8 @@ def api_inninfo(inn: str):
         return JSONResponse(status_code=500, content={"ok": False, "error": "Не найден файл РКН рядом с приложением"})
 
     org_name = get_org_name_by_inn(rkn_xlsx, inn_clean)
+    org_name = fix_mojibake(org_name)  # ✅ ВОТ ЭТО
+
     if not org_name:
         return JSONResponse(status_code=404, content={"ok": False, "org_name": ""})
 
