@@ -312,18 +312,20 @@
     if(!res.ok){
       A.org_name = "";
       updateSummary();
+      setHint("По ИНН не найдено");
       return false;
     }
 
     const data = await res.json();
     A.org_name = (data && data.ok && data.org_name) ? data.org_name : "";
     updateSummary();
+    setHint(A.org_name ? `Найдено: ${A.org_name}` : "По ИНН не найдено");
     return !!A.org_name;
 
   }catch(e){
     A.org_name = "";
     updateSummary();
-    setHint(A.org_name ? `Найдено: ${A.org_name}` : "По ИНН не найдено");
+    setHint("Ошибка запроса /api/inninfo");
     return false;
   }
 }
@@ -723,22 +725,24 @@
     }
   
     history.push(idx);
+
     idx++;
     render();
     return;
 }
 
-
     applyValue(step, parsed);
 
     if(step.key === "inn") {
-      
-      setError("");                 // убрали старую ошибку, если была
-      nextBtn.disabled = true;      // чтобы не жали 10 раз
-      spin.style.display = "inline-block"; // используем твой спиннер справа
+      setError("");
+      setHint("Ищу компанию по ИНН…");
+      nextBtn.disabled = true;
+      spin.style.display = "inline-block";
 
     try{
     // чтобы не висеть бесконечно — таймаут 5 секунд
+    setHint("Ищу компанию по ИНН…");
+
     await Promise.race([
       fetchInnInfo(parsed),
       new Promise((_, reject)=> setTimeout(()=> reject(new Error("timeout")), 5000))
