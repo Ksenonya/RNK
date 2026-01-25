@@ -673,7 +673,7 @@
     }
   }
 
-  function next(){
+ async function next(){
     let step = currentStep();
     while(step && step.when && !step.when()){
       idx++;
@@ -713,18 +713,17 @@
 
 
     applyValue(step, parsed);
-    if(step.key === "inn"){
-      fetchInnInfo(A.inn);
-    }
 
     if(step.key === "inn") {
-      // подтянуть наименование по ИНН и показать справа
-      fetchInnInfo(parsed);
+      // подтянуть наименование по ИНН и дождаться ответа
+      await fetchInnInfo(parsed);
     }
+    
     history.push(idx);
     idx++;
     render();
-  }
+    }
+
 
   backBtn.addEventListener("click", back);
   nextBtn.addEventListener("click", next);
