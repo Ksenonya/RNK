@@ -166,6 +166,8 @@
 
           <div id="inputBox"></div>
           <div class="error" id="errBox"></div>
+          <div class="muted" id="hintBox" style="margin-top:10px; display:none;"></div>
+
 
           <div class="actions">
             <button class="btn btnGhost" id="backBtn">← Назад</button>
@@ -217,6 +219,7 @@
   const qText  = document.getElementById("qText");
   const inputBox = document.getElementById("inputBox");
   const errBox = document.getElementById("errBox");
+  const hintBox = document.getElementById("hintBox");
 
   const backBtn = document.getElementById("backBtn");
   const nextBtn = document.getElementById("nextBtn");
@@ -263,6 +266,11 @@
   function setError(msg){
     errBox.textContent = msg || "";
     errBox.style.display = msg ? "block" : "none";
+  }
+   
+  function setHint(msg){
+  hintBox.textContent = msg || "";
+  hintBox.style.display = msg ? "block" : "none";
   }
 
   function setInputText({label, placeholder="", value=""}){
@@ -315,6 +323,7 @@
   }catch(e){
     A.org_name = "";
     updateSummary();
+    setHint(A.org_name ? `Найдено: ${A.org_name}` : "По ИНН не найдено");
     return false;
   }
 }
@@ -723,11 +732,12 @@
     applyValue(step, parsed);
 
     if(step.key === "inn") {
-  setError("");                 // убрали старую ошибку, если была
-  nextBtn.disabled = true;      // чтобы не жали 10 раз
-  spin.style.display = "inline-block"; // используем твой спиннер справа
+      
+      setError("");                 // убрали старую ошибку, если была
+      nextBtn.disabled = true;      // чтобы не жали 10 раз
+      spin.style.display = "inline-block"; // используем твой спиннер справа
 
-  try{
+    try{
     // чтобы не висеть бесконечно — таймаут 5 секунд
     await Promise.race([
       fetchInnInfo(parsed),
