@@ -400,41 +400,48 @@
       error:"Выберите вариант."
     },
     {
-      key:"revenue_q",
-      title:"Доходы за квартал",
-      text:"Введите доходы за квартал (число ≥ 0). Если данных нет — поставьте «-».",
-      when: ()=> A.base_type === "revenue_q",
-      render: ()=> setInputText({label:"Доход за квартал", placeholder:"например 1250000 или -"}),
-      validate: (v)=>{
-        if (isEmptyOrDash(v)) return SKIP;
-        const n = parseFloatMaybe(v);
-        if(n === null || !Number.isFinite(n) || n < 0) return null;
-        return n;
+    key:"revenue_q",
+    title:"Доходы за квартал",
+    text:"Введите доходы за квартал (число ≥ 0). Если данных нет — поставьте «-».",
+    when: ()=> A.base_type === "revenue_q",
+    render: ()=> setInputText({label:"Доход за квартал", placeholder:"например 1250000 или -"}),
+    validate: (v)=>{
+      if (isEmptyOrDash(v)) return SKIP;
+      const n = parseFloatMaybe(v);
+      if(n === null || !Number.isFinite(n) || n < 0) return null;
+      return n;
+    },
+    error:"Введите число ≥ 0 или «-»."
     },
     {
-      key:"annual_revenue",
-      title:"Годовая выручка",
-      text:"Введите сумму годовой выручки/дохода (число ≥ 0). Если данных нет — поставьте «-».",
-      when: ()=> A.base_type === "annual_revenue",
-      render: ()=> setInputText({label:"Годовая выручка", placeholder:"например 5000000 или -"}),
-      validate: (v)=>{
-        if (isEmptyOrDash(v)) return SKIP;
-        const n = parseFloatMaybe(v);
-        if(n === null || !Number.isFinite(n) || n < 0) return null;
-        return n;
+    key:"annual_revenue",
+    title:"Годовая выручка",
+    text:"Введите сумму годовой выручки/дохода (число ≥ 0). Если данных нет — поставьте «-».",
+    when: ()=> A.base_type === "annual_revenue",
+    render: ()=> setInputText({label:"Годовая выручка", placeholder:"например 5000000 или -"}),
+    validate: (v)=>{
+      if (isEmptyOrDash(v)) return SKIP;
+      const n = parseFloatMaybe(v);
+      if(n === null || !Number.isFinite(n) || n < 0) return null;
+      return n;
+    },
+    error:"Введите число ≥ 0 или «-»."
     },
     {
-      key:"expenses_q",
-      title:"Расходы за квартал",
-      text:"Введите расходы за квартал (число ≥ 0). Если данных нет — поставьте «-».",
-      when: ()=> A.base_type === "expenses_q",
-      render: ()=> setInputText({label:"Расходы за квартал", placeholder:"например 900000 или -"}),
-      validate: (v)=>{
-        if (isEmptyOrDash(v)) return SKIP;
-        const n = parseFloatMaybe(v);
-        if(n === null || !Number.isFinite(n) || n < 0) return null;
-        return n;
+    key:"expenses_q",
+    title:"Расходы за квартал",
+    text:"Введите расходы за квартал (число ≥ 0). Если данных нет — поставьте «-».",
+    when: ()=> A.base_type === "expenses_q",
+    render: ()=> setInputText({label:"Расходы за квартал", placeholder:"например 900000 или -"}),
+    validate: (v)=>{
+      if (isEmptyOrDash(v)) return SKIP;
+      const n = parseFloatMaybe(v);
+      if(n === null || !Number.isFinite(n) || n < 0) return null;
+      return n;
     },
+    error:"Введите число ≥ 0 или «-»."
+    },
+
     {
       key:"internet_resources",
       title:"Интернет-ресурсы",
