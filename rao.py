@@ -1084,3 +1084,18 @@ def run_calc_capture(argv: List[str]) -> Tuple[int, str]:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+def fix_mojibake(s: str) -> str:
+    """
+    Чинит типичный случай: UTF-8 байты были интерпретированы как latin-1.
+    Если строка нормальная — вернёт как есть.
+    """
+    if not s:
+        return s
+    if "Ð" not in s and "Ñ" not in s:
+        return s
+    try:
+        return s.encode("latin1").decode("utf-8")
+    except Exception:
+        return s
+
