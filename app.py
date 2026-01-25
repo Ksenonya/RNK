@@ -37,6 +37,40 @@ def find_rkn_xlsx() -> Path:
 
 app = FastAPI()
 
+INN_MAP: dict[str, str] = {}
+
+@app.on_event("startup")
+def load_inn_map():
+    global INN_MAP
+    csv_path = BASE_DIR / "inn_name.csv"
+    if not csv_path.exists():
+        print("⚠️ inn_name.csv not found рядом с app.py")
+        return
+
+    import csv
+    with csv_path.open("r", encoding="utf-8", newline="") as f:
+        r = csv.DictReader(f)
+
+        # 🔥 проверка, что колонки совпали
+        if not r.fieldnames:
+            raise RuntimeError("inn_name.csv пустой или без заголовков")
+        need_cols = {"ns1:inn", "ns1:org_name_short"}
+        missing = need_cols - set(r.fieldnames)
+        if missing:
+            raise RuntimeError(f"inn_name.csv: не найдены колонки {sorted(missing)}; есть {r.fieldnames}")
+
+        mp = {}
+        for row in r:
+            inn = (row.get("ns1:inn") or "").strip()
+            name = (row.get("ns1:org_name_short") or "").strip()
+            if inn and name and inn not in mp:
+                mp[inn] = name
+
+        INN_MAP = mp
+        print(f"✅ inn_name.csv loaded: {len(INN_MAP)}")
+
+
+
 DASH_TOKENS = {"", "-", "—", "–", "нет"}
 
 
@@ -161,6 +195,10 @@ def home():
 def api_inninfo(inn: str):
     try:
         inn_clean = parse_inn(inn)
+        org_name = INN_MAP.get(inn_clean)
+        if org_name:
+            org_name = fix_mojibake(org_name)
+            return {"ok": True, "inn": inn_clean, "org_name": org_name}
     except Exception as e:
         return JSONResponse(status_code=400, content={"ok": False, "error": str(e)})
 
