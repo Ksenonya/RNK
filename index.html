@@ -176,10 +176,6 @@
             <button class="btn btnPrimary" id="nextBtn">Далее →</button>
             <button class="btn btnDanger" id="restartBtn">Начать заново</button>
           </div>
-
-          <div class="muted" id="footerHelp" style="margin-top:14px;">
-          Подсказка: <b>Enter</b> = далее. «-» или пусто = пропустить (если поле опциональное).
-          </div>
         </div>
       </div>
 
@@ -450,7 +446,7 @@
     {
     key:"annual_revenue",
     title:"Годовая выручка",
-    text:"Введите сумму годовой выручки/дохода (число ≥ 0). Если данных нет — поставьте «-».",
+    text:"Введите сумму годовой выручки/дохода. Если данных нет — нажмите «Далее».",
     when: ()=> A.base_type === "annual_revenue",
     render: ()=> setInputText({label:"Годовая выручка", placeholder:"например 5000000 или -"}),
     validate: (v)=>{
@@ -535,16 +531,16 @@
   text:"Выберите режим расчёта.",
   render: ()=> setInputSelect({
     label:"Режим",
-    choices:["Авто","Включить","Выключить"],
+    choices:["Авто (как в лицензиях)","Включить","Выключить"],
     value: (()=>{
       const v = (A.small_income_mode ?? "auto");
       if(v === "force_on") return "Включить";
       if(v === "force_off") return "Выключить";
-      return "Авто";
+      return "Авто (как в лицензиях)";
     })()
   }),
   validate: (v)=>{
-    if(v === "Авто") return "auto";
+    if(v === "Авто (как в лицензиях)") return "auto";
     if(v === "Включить") return "force_on";
     if(v === "Выключить") return "force_off";
     return null;
