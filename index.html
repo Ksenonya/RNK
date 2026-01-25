@@ -175,8 +175,8 @@
             <button class="btn btnDanger" id="restartBtn">Начать заново</button>
           </div>
 
-          <div class="muted" style="margin-top:14px;">
-            Подсказка: <b>Enter</b> = далее. «-» или пусто = пропустить (если поле опциональное).
+          <div class="muted" id="footerHelp" style="margin-top:14px;">
+          Подсказка: <b>Enter</b> = далее. «-» или пусто = пропустить (если поле опциональное).
           </div>
         </div>
       </div>
@@ -216,6 +216,7 @@
   const A = {};
 
   const qTitle = document.getElementById("qTitle");
+  const footerHelp = document.getElementById("footerHelp");
   const qText  = document.getElementById("qText");
   const inputBox = document.getElementById("inputBox");
   const errBox = document.getElementById("errBox");
@@ -581,11 +582,11 @@
       error:"Выберите «Да» или «Нет»."
     },
     {
-      key:"__finish__",
-      title:"Готово к расчёту",
-      text:"Нажми «Далее», чтобы выполнить расчёт и показать результат.",
-      render: ()=> { inputBox.innerHTML = `<div style="opacity:.8;">Нажмите «Далее», чтобы выполнить расчёт.</div>`; },
-      validate: ()=> "__finish__"
+    key:"__finish__",
+    title:"Готово к расчёту",
+    text:"Нажми «Рассчитать», чтобы выполнить расчёт и показать результат.",
+    render: ()=> { inputBox.innerHTML = ""; },
+    validate: ()=> "__finish__"
     },
   ];
 
@@ -619,7 +620,13 @@
     qTitle.textContent = step.title;
     qText.textContent = step.text || "";
     step.render?.();
-
+    if(step.key !== "inn"){
+    setHint("");
+    }
+    
+    if(footerHelp){
+    footerHelp.style.display = (step.key === "__finish__") ? "none" : "block";
+    }
     updateSummary();
     updateProgress();
 
