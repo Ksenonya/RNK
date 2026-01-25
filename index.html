@@ -310,11 +310,23 @@
     const res = await fetch(`/api/inninfo?inn=${encodeURIComponent(inn)}`);
 
     if(!res.ok){
-      A.org_name = "";
-      updateSummary();
-      setHint("По ИНН не найдено");
-      return false;
+    A.org_name = "";
+    updateSummary();
+  
+    let msg = "По ИНН не найдено";
+    if(res.status !== 404){
+      try{
+        const data = await res.json();
+        msg = "Ошибка /api/inninfo: " + (data.error || res.status);
+      }catch{
+        msg = "Ошибка /api/inninfo: " + res.status;
+      }
     }
+  
+    setHint(msg);
+    return false;
+  }
+
 
     const data = await res.json();
     A.org_name = (data && data.ok && data.org_name) ? data.org_name : "";
