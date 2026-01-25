@@ -298,19 +298,27 @@
   }
 
   async function fetchInnInfo(inn){
-    try{
-      const res = await fetch(`/api/inninfo?inn=${encodeURIComponent(inn)}`);
-      const data = await res.json();
-      if(data && data.ok){
-        A.org_name = data.org_name || "";
-      } else {
-        A.org_name = "";
-      }
-    }catch(e){
+  try{
+    const res = await fetch(`/api/inninfo?inn=${encodeURIComponent(inn)}`);
+
+    if(!res.ok){
       A.org_name = "";
+      updateSummary();
+      return false;
     }
+
+    const data = await res.json();
+    A.org_name = (data && data.ok && data.org_name) ? data.org_name : "";
     updateSummary();
+    return !!A.org_name;
+
+  }catch(e){
+    A.org_name = "";
+    updateSummary();
+    return false;
   }
+}
+
 
   function mediaLabel(code){
     if(code === "auto") return "Авто (как в лицензиях)";
@@ -715,9 +723,25 @@
     applyValue(step, parsed);
 
     if(step.key === "inn") {
-      // подтянуть наименование по ИНН и дождаться ответа
-      await fetchInnInfo(parsed);
-    }
+  setError("");                 // убрали старую ошибку, если была
+  nextBtn.disabled = true;      // чтобы не жали 10 раз
+  spin.style.display = "inline-block"; // используем твой спиннер справа
+
+  try{
+    // чтобы не висеть бесконечно — таймаут 5 секунд
+    await Promise.race([
+      fetchInnInfo(parsed),
+      new Promise((_, reject)=> setTimeout(()=> reject(new Error("timeout")), 5000))
+    ]);
+  }catch(e){
+    // если таймаут/ошибка — просто продолжаем дальше
+    // (название может подгрузиться позже или не найтись)
+  }finally{
+    spin.style.display = "none";
+    nextBtn.disabled = false;
+  }
+}
+
     
     history.push(idx);
     idx++;
