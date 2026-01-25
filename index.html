@@ -368,9 +368,9 @@
       "не указана";
 
     const smallLabel =
-      (A.small_income_mode === "force_on") ? "Принудительно включить" :
-      (A.small_income_mode === "force_off") ? "Принудительно выключить" :
-      (A.small_income_mode === "auto") ? "Авто" :
+      (A.small_income_mode === "force_on") ? "Включить" :
+      (A.small_income_mode === "force_off") ? "Выключить" :
+      (A.small_income_mode === "auto") ? "Авто (как в лицензиях)" :
       A.small_income_mode;
 
     const items = [
@@ -378,7 +378,7 @@
       ["Наименование", A.org_name],
       [baseLabel, baseValue],
       ["Интернет-ресурсы", A.internet_resources],
-      ["Ранее работал с РАО?", (A.worked_before===true ? "Да" : (A.worked_before===false ? "Нет" : "Авто"))],
+      ["Ранее работал с РАО?", (A.worked_before===true ? "Да" : (A.worked_before===false ? "Нет" : "Авто (как в лицензиях)"))],
 ["Среда договора", mediaLabel(A.contract_media ?? "auto")],
       ["Член отраслевой ассоциации", (A.assoc_member===true ? "Да" : (A.assoc_member===false ? "Нет" : undefined))],
       ["Ветка малого дохода", smallLabel],
@@ -554,7 +554,7 @@
     {
       key:"only_license",
       title:"Ограничение лицензией",
-      text:"Если нужно посчитать только одну лицензию — введите её НОМЕР (как в РКН, например Л033-...).  Если не нужно — нажмите «Далее».",
+      text:"Если нужно посчитать только одну лицензию — введите её номер (как в РКН, например Л033-...).  Если не нужно — нажмите «Далее».",
       render: ()=> setInputText({label:"Только лицензия (номер, опционально)", placeholder:"номер лицензии или -"}),
       validate: (v)=> isEmptyOrDash(v) ? SKIP : v.trim()
     },
