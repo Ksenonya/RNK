@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote
+import unicodedata
 
 from functools import lru_cache
 
@@ -221,50 +222,107 @@ def build_category_rate_map(vars_xlsx: Path) -> Dict[str, float]:
 
 def topic_to_rate(topic: str, category_rate: Dict[str, float], mapping_df: Optional[pd.DataFrame]) -> Tuple[float, List[str]]:
     notes: List[str] = []
-    t = (topic or "").strip()
-    tl = t.lower()
 
+    def norm(s: str) -> str:
+        s = (s or "").strip().lower()
+        s = s.replace("ё", "е")
+        # разные тире -> дефис
+        s = s.replace("—", "-").replace("–", "-")
+        # unicode normalize
+        s = unicodedata.normalize("NFKC", s)
+        # убрать скобки/кавычки/пунктуацию в пробел
+        s = re.sub(r"[\"'«»“”]", " ", s)
+        s = re.sub(r"[()\[\]{}]", " ", s)
+        s = re.sub(r"[^a-zа-я0-9\- ]+", " ", s)
+        # схлопнуть пробелы
+        s = re.sub(r"\s+", " ", s).strip()
+        return s
+
+    t_raw = (topic or "").strip()
+    tl = norm(t_raw)
+
+    # ---------------- 1) Пытаемся сопоставить по таблице (не только ==, но и contains) ----------------
     if mapping_df is not None and not mapping_df.empty:
         col_cat = "Категория тематики использования произведений по Приложению 1"
         col_topic = "Формулировка тематики вещания в лицензии пользователя"
         if col_cat in mapping_df.columns and col_topic in mapping_df.columns:
-            m = mapping_df[mapping_df[col_topic].astype(str).str.lower().str.strip() == tl]
+            df = mapping_df[[col_topic, col_cat]].dropna()
+            df = df.copy()
+            df["_norm"] = df[col_topic].astype(str).map(norm)
+
+            # 1) точное совпадение
+            m = df[df["_norm"] == tl]
             if not m.empty:
                 cat = str(m.iloc[0][col_cat]).strip()
                 rate = category_rate.get(cat)
                 if rate is not None:
-                    notes.append(f"Тематика сопоставлена по таблице «Тематики по категориям»: категория {cat}.")
+                    notes.append(f"Тематика сопоставлена по таблице «Тематики по категориям» (точно): категория {cat}.")
                     return float(rate), notes
 
+            # 2) “вхождение” в обе стороны (часто формулировки длиннее/короче)
+            # берем самый “длинный” матч (обычно он точнее)
+            candidates = df[(df["_norm"].str.contains(tl, na=False)) | (pd.Series([tl]*len(df)).str.contains(df["_norm"], na=False))]
+            if not candidates.empty:
+                candidates = candidates.sort_values(by=candidates["_norm"].str.len(), ascending=False)
+                cat = str(candidates.iloc[0][col_cat]).strip()
+                rate = category_rate.get(cat)
+                if rate is not None:
+                    notes.append(f"Тематика сопоставлена по таблице «Тематики по категориям» (вхождение): категория {cat}.")
+                    return float(rate), notes
+
+    # ---------------- 2) Эвристики (расширенные) ----------------
     def hit(*keys: str) -> bool:
         return any(k in tl for k in keys)
 
-    if ("информац" in tl and "развлек" in tl) or ("информационно-развлекатель" in tl):
-        rate = category_rate.get("IV", 2.7)
-        notes.append("Тематика распознана как «информационно-развлекательная» (категория IV).")
-        return rate, notes
+    # ВАЖНО: порядок правил — это качество классификации.
+    # Сначала “составные” и более специфичные штуки, потом общие.
 
-    if hit("информац", "новост", "аналит"):
-        rate = category_rate.get("I", 2.0)
-        notes.append("Тематика распознана эвристикой как «информационная» (категория I).")
-        return rate, notes
-    if hit("культур", "просвет", "познав", "документ"):
-        rate = category_rate.get("III", 2.5)
-        notes.append("Тематика распознана эвристикой как «культурно-просветительская» (категория III).")
-        return rate, notes
-    if hit("спорт", "образоват", "здоров", "зож", "дет", "научн"):
-        rate = category_rate.get("II", 2.3)
-        notes.append("Тематика распознана эвристикой как «социально-полезная/образовательная/спорт/ЗОЖ» (категория II).")
-        return rate, notes
-    if hit("развлек", "юмор", "шоу", "игр"):
-        rate = category_rate.get("IV", 2.7)
-        notes.append("Тематика распознана эвристикой как «развлекательная» (категория IV).")
-        return rate, notes
-    if hit("музык", "клип", "концерт"):
+    # ---- V (музыкальная) — ловим раньше, чтобы “информационно-музыкальное” не ушло в I
+    if hit("музык", "песн", "клип", "концерт", "эстрад", "популярная музыка", "музыкально", "музыка"):
         rate = category_rate.get("V", 3.0)
         notes.append("Тематика распознана эвристикой как «музыкальная» (категория V).")
-        return rate, notes
+        return float(rate), notes
 
+    # ---- IV (развлекательная) — тоже довольно специфично
+    if hit("развлек", "юмор", "шоу", "ток-шоу", "ток шоу", "игр", "викторин", "конкурс", "поздрав", "комед", "коморист", "розыгрыш"):
+        rate = category_rate.get("IV", 2.7)
+        notes.append("Тематика распознана эвристикой как «развлекательная» (категория IV).")
+        return float(rate), notes
+
+    # ---- II (социально-полезная/образование/дети/спорт/наука/здоровье/туризм/уроки)
+    if hit(
+        "дет", "для детей", "подрост", "школьник",
+        "образоват", "учеб", "урок", "просветительско-образователь", "научн", "научно",
+        "познавательн", "учебно-познавательн", "учебно-просветительск",
+        "спорт", "спортивно", "оздоров", "здоров", "зож", "пропаганда здорового",
+        "туризм"
+    ):
+        rate = category_rate.get("II", 2.3)
+        notes.append("Тематика распознана эвристикой как «социально-полезная/образовательная/спорт/ЗОЖ» (категория II).")
+        return float(rate), notes
+
+    # ---- III (культурно-просветительская/искусство/документалистика/художественное/погода/отдых/народное)
+    if hit(
+        "культур", "искусств", "литератур", "поэтич", "художественн", "художественно",
+        "документ", "кино", "телефильм", "передачи об искусстве",
+        "народное творчество", "социально-культурн",
+        "прогноз погоды", "погода", "отдых", "досуг"
+    ):
+        rate = category_rate.get("III", 2.5)
+        notes.append("Тематика распознана эвристикой как «культурно-просветительская/художественная» (категория III).")
+        return float(rate), notes
+
+    # ---- I (информационная/новости/политика/экономика/право/религия/официальная хроника/социально-значимые)
+    if hit(
+        "информац", "новост", "аналит", "публицист", "общественно", "полит", "эконом", "делов",
+        "правов", "социально-значим", "официальная хроника", "оперативная информация",
+        "религи", "патриот", "интервью", "комментар"
+    ):
+        rate = category_rate.get("I", 2.0)
+        notes.append("Тематика распознана эвристикой как «информационная» (категория I).")
+        return float(rate), notes
+
+    # Если вообще непонятно — дефолт
     notes.append("Тематика не распознана; применена ставка по умолчанию 2,5% (категория III).")
     return DEFAULT_TOPIC_RATE, notes
 
