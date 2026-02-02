@@ -261,14 +261,26 @@ def topic_to_rate(topic: str, category_rate: Dict[str, float], mapping_df: Optio
 
             # 2) “вхождение” в обе стороны (часто формулировки длиннее/короче)
             # берем самый “длинный” матч (обычно он точнее)
-            candidates = df[(df["_norm"].str.contains(tl, na=False)) | (pd.Series([tl]*len(df)).str.contains(df["_norm"], na=False))]
-            if not candidates.empty:
-                candidates = candidates.sort_values(by=candidates["_norm"].str.len(), ascending=False)
-                cat = str(candidates.iloc[0][col_cat]).strip()
-                rate = category_rate.get(cat)
-                if rate is not None:
-                    notes.append(f"Тематика сопоставлена по таблице «Тематики по категориям» (вхождение): категория {cat}.")
-                    return float(rate), notes
+            # 2) “вхождение” в обе стороны (часто формулировки длиннее/короче)
+            # 2) “вхождение” в обе стороны (длиннее/короче)
+            # mask1: в лицензии tl содержит формулировку из таблицы
+            # mask2: формулировка из таблицы содержит tl
+            if tl:  # защита от пустой строки
+                mask1 = df["_norm"].str.contains(tl, na=False, regex=False)
+                mask2 = df["_norm"].apply(lambda x: bool(x) and (x in tl))
+            
+                candidates = df[mask1 | mask2].copy()
+                if not candidates.empty:
+                    candidates["_len"] = candidates["_norm"].str.len()
+                    candidates = candidates.sort_values("_len", ascending=False)
+            
+                    cat = str(candidates.iloc[0][col_cat]).strip()
+                    rate = category_rate.get(cat)
+                    if rate is not None:
+                        notes.append(f"Тематика сопоставлена по таблице «Тематики по категориям» (вхождение): категория {cat}.")
+                        return float(rate), notes
+
+
 
     # ---------------- 2) Эвристики (расширенные) ----------------
     def hit(*keys: str) -> bool:
