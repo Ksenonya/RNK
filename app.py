@@ -125,6 +125,7 @@ class CalcRequest(BaseModel):
 
     only_license: Optional[str] = None
     population_override: Optional[int] = Field(None, ge=0, le=2_000_000_000)
+    subscriber_total: Optional[int] = Field(None, ge=0, le=2_000_000_000)
 
     if _V2:
         @field_validator("inn", mode="before")
@@ -239,6 +240,9 @@ def api_calc(req: CalcRequest):
         argv += ["--only_license", req.only_license.strip()]
     if req.population_override is not None:
         argv += ["--population_override", str(int(req.population_override))]
+    if req.subscriber_total is not None:
+        argv += ["--subscriber_total", str(int(req.subscriber_total))]
+
 
     code, out = run_calc_capture(argv)
     out = (out or "").strip()
