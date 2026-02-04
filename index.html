@@ -363,12 +363,6 @@
       (A.base_type === "expenses_q") ? A.expenses_q :
       "не указана";
 
-    const smallLabel =
-      (A.small_income_mode === "force_on") ? "Включить" :
-      (A.small_income_mode === "force_off") ? "Выключить" :
-      (A.small_income_mode === "auto") ? "Авто (как в лицензиях)" :
-      A.small_income_mode;
-
     const items = [
       ["ИНН", A.inn],
       ["Наименование", A.org_name],
@@ -377,7 +371,6 @@
       ["Ранее работал с РАО?", (A.worked_before===true ? "Да" : (A.worked_before===false ? "Нет" : "Авто (как в лицензиях)"))],
 ["Среда договора", mediaLabel(A.contract_media ?? "auto")],
       ["Член отраслевой ассоциации", (A.assoc_member===true ? "Да" : (A.assoc_member===false ? "Нет" : undefined))],
-      ["Ветка малого дохода", smallLabel],
       ["Только лицензия", A.only_license],
       ["Население (если территория отличается)", A.population_override],
                 ];
@@ -526,28 +519,6 @@
       error:"Выберите один из вариантов."
     },
     {
-  key:"small_income_mode",
-  title:"Применять ли коэффициент малого дохода?",
-  text:"Выберите режим расчёта.",
-  render: ()=> setInputSelect({
-    label:"Режим",
-    choices:["Авто (как в лицензиях)","Включить","Выключить"],
-    value: (()=>{
-      const v = (A.small_income_mode ?? "auto");
-      if(v === "force_on") return "Включить";
-      if(v === "force_off") return "Выключить";
-      return "Авто (как в лицензиях)";
-    })()
-  }),
-  validate: (v)=>{
-    if(v === "Авто (как в лицензиях)") return "auto";
-    if(v === "Включить") return "force_on";
-    if(v === "Выключить") return "force_off";
-    return null;
-  },
-  error:"Выберите режим."
-},
-    {
       key:"only_license",
       title:"Ограничение лицензией",
       text:"Если нужно посчитать только одну лицензию — введите её номер (как в РКН, например Л033-...).  Если не нужно — нажмите «Далее».",
@@ -671,7 +642,7 @@
       only_license: (A.only_license ?? null),
       population_override: (A.population_override ?? null),
 
-      small_income_mode: (A.small_income_mode ?? "auto"),
+      small_income_mode: "auto",
     };
 
     if(A.base_type === "annual_revenue") payload.annual_revenue = (A.annual_revenue ?? null);
