@@ -507,18 +507,78 @@
       validate: (v)=> isEmptyOrDash(v) ? SKIP : v.trim()
     },
     {
-      key:"population_override",
-      title:"Территория отличается от заявленной в лицензии?",
-      text:"Если да — введите население территории вещания. Если не нужно — нажмите «Далее».",
-      render: ()=> setInputText({label:"Население (опционально)", placeholder:"например 978500 или -"}),
-      validate: (v)=>{
-        if(isEmptyOrDash(v)) return SKIP;
-        const n = parseIntMaybe(v);
-        if(!Number.isInteger(n) || n < 0) return null;
-        return n;
-      },
-      error:"Введите целое число ≥ 0 или «-»."
-    },
+  key:"min_calc_mode",
+  title:"Минимальная сумма",
+  text:"Производить расчёт по количеству абонентов или по населению?",
+  render: ()=> setInputSelect({
+    label:"Выберите вариант",
+    choices:[
+      "По количеству абонентов",
+      "По населению"
+    ],
+    value: (A.min_calc_mode === "subs") ? "По количеству абонентов"
+         : (A.min_calc_mode === "pop") ? "По населению"
+         : "По населению"
+  }),
+  validate: (v)=>{
+    if(v === "По количеству абонентов") return "subs";
+    if(v === "По населению") return "pop";
+    return null;
+  },
+  error:"Выберите вариант."
+},
+
+{
+  key:"subscriber_total",
+  title:"Количество абонентов",
+  text:"Введите суммарное количество абонентов всех операторов, распространяющих телеканал. Если не нужно — нажмите «Далее» и выберите расчёт по населению.",
+  when: ()=> A.min_calc_mode === "subs",
+  render: ()=> setInputText({label:"Суммарное количество абонентов", placeholder:"например 25000"}),
+  validate: (v)=>{
+    if(isEmptyOrDash(v)) return SKIP; // чтобы можно было быстро уйти на «по населению»
+    const n = parseIntMaybe(v);
+    if(!Number.isInteger(n) || n < 0) return null;
+    return n;
+  },
+  error:"Введите целое число ≥ 0."
+},
+
+{
+  key:"population_override",
+  title:"Категория населения",
+  text:"Выберите категорию населения территории вещания. Это будет использовано для расчёта минимальной суммы.",
+  when: ()=> A.min_calc_mode === "pop",
+  render: ()=> setInputSelect({
+    label:"Категория населения",
+    choices:[
+      "менее 19 999",
+      "20 000 – 49 999",
+      "50 000 – 149 999",
+      "150 000 – 299 999",
+      "300 000 – 599 999",
+      "600 000 – 999 999",
+      "1 000 000 – 1 999 999",
+      "2 000 000 – 3 999 999",
+      "более 4 000 000"
+    ],
+    value: A.population_override ? null : "20 000 – 49 999"
+  }),
+  validate: (v)=>{
+    // мы возвращаем "техническое" число, которое попадает в нужный диапазон таблицы на бэке
+    if(v === "менее 19 999") return 1;
+    if(v === "20 000 – 49 999") return 20000;
+    if(v === "50 000 – 149 999") return 50000;
+    if(v === "150 000 – 299 999") return 150000;
+    if(v === "300 000 – 599 999") return 300000;
+    if(v === "600 000 – 999 999") return 600000;
+    if(v === "1 000 000 – 1 999 999") return 1000000;
+    if(v === "2 000 000 – 3 999 999") return 2000000;
+    if(v === "более 4 000 000") return 4000001;
+    return null;
+  },
+  error:"Выберите категорию."
+},
+
     {
       key:"assoc_member",
       title:"Член отраслевой ассоциации?",
@@ -609,21 +669,24 @@
 
     const payload = {
       inn: A.inn,
-
+    
       annual_revenue: null,
       revenue_q: null,
       expenses_q: null,
-
+    
       internet_resources: (A.internet_resources ?? 0),
       contract_media: (A.contract_media ?? "auto"),
-
-      new_user: false,
+    
+      new_user: (A.worked_before === false),
       assoc_member: (A.assoc_member ?? false),
-
+    
       only_license: (A.only_license ?? null),
+    
+      // НОВОЕ:
+      subscriber_total: (A.subscriber_total ?? null),
       population_override: (A.population_override ?? null),
-
-      small_income_mode: "auto",
+    
+      small_income_mode: (A.small_income_mode ?? "auto"),
     };
 
     if(A.base_type === "annual_revenue") payload.annual_revenue = (A.annual_revenue ?? null);
@@ -684,6 +747,9 @@
   if(parsed === SKIP){
     // сохраняем как "нет данных" и идём дальше
     applyValue(step, null);
+    if(step.key === "subscriber_total"){
+      A.min_calc_mode = "pop";
+    }
   
     // если это финансовый шаг и пользователь поставил "-" → считаем что финансовой базы нет
     if(step.key === "revenue_q" || step.key === "annual_revenue" || step.key === "expenses_q"){
