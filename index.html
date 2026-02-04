@@ -368,8 +368,7 @@
       ["Наименование", A.org_name],
       [baseLabel, baseValue],
       ["Интернет-ресурсы", A.internet_resources],
-      ["Ранее работал с РАО?", (A.worked_before===true ? "Да" : (A.worked_before===false ? "Нет" : "Авто (как в лицензиях)"))],
-["Среда договора", mediaLabel(A.contract_media ?? "auto")],
+      ["Среда договора", mediaLabel(A.contract_media ?? "auto")],
       ["Член отраслевой ассоциации", (A.assoc_member===true ? "Да" : (A.assoc_member===false ? "Нет" : undefined))],
       ["Только лицензия", A.only_license],
       ["Население (если территория отличается)", A.population_override],
@@ -477,24 +476,6 @@
       },
       error:"Введите целое число от 0 до 1000."
     },
-    {
-      key:"worked_before",
-      title:"Пользователь ранее работал с РАО?",
-      text:"Если пользователь уже заключал договор с РАО раньше — выберите «Да». Если это первый договор — «Нет». Если не хотите применять этот коэффициент — выберите «Авто».",
-      render: ()=> setInputSelect({
-        label:"Ранее работал с РАО?",
-        choices:["Авто","Да","Нет"],
-        value:(A.worked_before === true ? "Да" : (A.worked_before === false ? "Нет" : "Авто"))
-      }),
-      validate: (v)=>{
-        if(v === "Да") return true;
-        if(v === "Нет") return false;
-        if(v === "Авто") return SKIP;
-        return null;
-      },
-      error:"Выберите вариант."
-    },
-    
     {
       key:"contract_media",
       title:"Среда договора",
@@ -636,7 +617,7 @@
       internet_resources: (A.internet_resources ?? 0),
       contract_media: (A.contract_media ?? "auto"),
 
-      new_user: (A.worked_before === false),
+      new_user: false,
       assoc_member: (A.assoc_member ?? false),
 
       only_license: (A.only_license ?? null),
