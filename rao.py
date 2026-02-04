@@ -658,6 +658,7 @@ def compute_min_total(
     use_small_income_branch: Optional[bool] = None,
     new_user_only: bool = False,
     assoc_member: bool = False,
+    subscriber_total: Optional[int] = None,
 ) -> Tuple[Optional[float], Dict[str, Any], List[str]]:
     """Блок C: расчёт минималки по таблицам + поправки (население/часы/интернет/скидка по числу лицензий)
     и затем «гильотина» как автоматическое ограничение минималки по сумме по проценту.
@@ -724,44 +725,59 @@ def compute_min_total(
 
     min_total = 0.0
 
-    # C1/C2/C7
-    if small_branch:
-        N_sum = sum(int(lic.population_total) for lic in licenses if lic.population_total is not None)
-        if N_sum <= 0:
-            return None, details, notes + ["Нельзя применить ветку малого дохода: нет суммарной численности населения."]
-        m = lookup_min_sum(mins_df, N_sum, media_for_agg)
-        if m is None:
-            return None, details, notes + ["Не найдена минималка в таблице по суммарной численности населения."]
-        min_total = SMALL_K * m
-        details["steps"].append({"step": "C3", "N_sum": N_sum, "media": media_for_agg, "min_table": m, "k_small": SMALL_K, "min_after": min_total})
-        notes.append("Включена ветка малого дохода: минималка по суммарной численности населения и затем ×0,5.")
+    # --- Ветка 3.4.2 / 3.5: минималка по абонентам ---
+    if subscriber_total is not None:
+        subs = int(subscriber_total)
+        if subs < 0:
+            return None, details, notes + ["Количество абонентов не может быть отрицательным."]
+    
+        min_total = float(subs) * 5.0
+        details["steps"].append({"step": "SUBSCRIBERS_MIN", "subscriber_total": subs, "min_after": min_total})
+        notes.append("Минимальная сумма рассчитана по абонентам: не менее 5 руб. за абонента (пп. 3.4.2 / 3.5).")
+    
+        # интернет-доплата (3.6) — оставляем как у тебя ниже, она применится дальше
     else:
-        per_lic = []
-        for lic in licenses:
-            if lic.population_total is None:
-                continue
+        min_total = 0.0
 
-            media_for_min = lic.media_class
-            if contract_media in ("cable", "air"):
-                media_for_min = "В эфире или по кабелю"
-            elif contract_media == "both":
-                media_for_min = "Одновременно в эфире и по кабелю"
-
-            m = lookup_min_sum(mins_df, int(lic.population_total), media_for_min)
+    if subscriber_total is None:
+    # C1/C2/C7
+        if small_branch:
+            N_sum = sum(int(lic.population_total) for lic in licenses if lic.population_total is not None)
+            if N_sum <= 0:
+                return None, details, notes + ["Нельзя применить ветку малого дохода: нет суммарной численности населения."]
+            m = lookup_min_sum(mins_df, N_sum, media_for_agg)
             if m is None:
-                notes.append(f"Не найдена минималка по таблице для лицензии {lic.license_id} (население={lic.population_total}, среда={media_for_min}).")
-                continue
-
-            hrs = lic.total_hours()
-            coeff = 1.0
-            if hrs < 126:
-                coeff = hour_coeff(hours_df, hrs)
-
-            m2 = m * coeff
-            per_lic.append({"license_id": lic.license_id, "population": lic.population_total, "media": media_for_min, "min_table": m, "hours_week": hrs, "hour_coeff": coeff, "min_after": m2})
-            min_total += m2
-
-        details["steps"].append({"step": "C1+C2(+C7)", "per_license": per_lic, "min_after": min_total})
+                return None, details, notes + ["Не найдена минималка в таблице по суммарной численности населения."]
+            min_total = SMALL_K * m
+            details["steps"].append({"step": "C3", "N_sum": N_sum, "media": media_for_agg, "min_table": m, "k_small": SMALL_K, "min_after": min_total})
+            notes.append("Включена ветка малого дохода: минималка по суммарной численности населения и затем ×0,5.")
+        else:
+            per_lic = []
+            for lic in licenses:
+                if lic.population_total is None:
+                    continue
+    
+                media_for_min = lic.media_class
+                if contract_media in ("cable", "air"):
+                    media_for_min = "В эфире или по кабелю"
+                elif contract_media == "both":
+                    media_for_min = "Одновременно в эфире и по кабелю"
+    
+                m = lookup_min_sum(mins_df, int(lic.population_total), media_for_min)
+                if m is None:
+                    notes.append(f"Не найдена минималка по таблице для лицензии {lic.license_id} (население={lic.population_total}, среда={media_for_min}).")
+                    continue
+    
+                hrs = lic.total_hours()
+                coeff = 1.0
+                if hrs < 126:
+                    coeff = hour_coeff(hours_df, hrs)
+    
+                m2 = m * coeff
+                per_lic.append({"license_id": lic.license_id, "population": lic.population_total, "media": media_for_min, "min_table": m, "hours_week": hrs, "hour_coeff": coeff, "min_after": m2})
+                min_total += m2
+    
+            details["steps"].append({"step": "C1+C2(+C7)", "per_license": per_lic, "min_after": min_total})
 
     # C4 скидка по числу лицензий
     n_lic = len(licenses)
@@ -933,6 +949,7 @@ def main(argv=None) -> int:
     ap.add_argument("--no_small_income", action="store_true")
 
     ap.add_argument("--population_override", type=int, default=None)
+    ap.add_argument("--subscriber_total", type=int, default=None, help="Суммарное количество абонентов (ветка 3.4.2/3.5)")
 
     ap.add_argument("--non_interactive", action="store_true", help="для сайта всегда ставим этот флаг")
 
@@ -1035,6 +1052,8 @@ def main(argv=None) -> int:
         use_small_income_branch=use_small_income,
         new_user_only=bool(args.new_user),
         assoc_member=bool(args.assoc_member),
+        subscriber_total=args.subscriber_total,
+
     )
     notes.extend(min_notes)
 
