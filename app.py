@@ -126,8 +126,6 @@ class CalcRequest(BaseModel):
     only_license: Optional[str] = None
     population_override: Optional[int] = Field(None, ge=0, le=2_000_000_000)
 
-    small_income_mode: Literal["auto", "force_on", "force_off"] = "auto"
-
     if _V2:
         @field_validator("inn", mode="before")
         @classmethod
@@ -241,11 +239,6 @@ def api_calc(req: CalcRequest):
         argv += ["--only_license", req.only_license.strip()]
     if req.population_override is not None:
         argv += ["--population_override", str(int(req.population_override))]
-
-    if req.small_income_mode == "force_on":
-        argv += ["--force_small_income"]
-    elif req.small_income_mode == "force_off":
-        argv += ["--no_small_income"]
 
     code, out = run_calc_capture(argv)
     out = (out or "").strip()
