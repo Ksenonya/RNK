@@ -4,3 +4,7 @@ pydantic
 pandas
 openpyxl
 python-docx
+fastapi
+uvicorn
+pandas
+openpyxl
