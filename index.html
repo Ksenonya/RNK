@@ -168,7 +168,13 @@
     .licenseItem{ padding:12px; border-radius:12px; border:1px solid var(--line); background: rgba(0,0,0,.18); }
     .licenseHeader{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
     .licenseInfo{ flex:1; }
-    .licenseCheck{ margin-top:2px; }
+    .licenseCheck{
+      margin-top:2px;
+      width:18px;
+      height:18px;
+      accent-color: #4cc9f0;
+      flex: 0 0 auto;
+    }
     .licenseSelectAll{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
     .licenseMeta{ font-size:12px; color: var(--muted); margin-top:4px; }
     .licenseControls{ margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; }
@@ -697,9 +703,9 @@
             <div class="licenseInfo">
               <div><strong>${escapeHtml(smiName)}</strong></div>
               <div class="licenseMeta">Лицензия: ${escapeHtml(id)}</div>
-              <div class="licenseMeta">Среда вещания (как указано в лицензии): ${escapeHtml(mediaRaw)}</div>
+              <div class="licenseMeta">Среда вещания: ${escapeHtml(mediaRaw)}</div>
               <div class="licenseMeta">Категория среды: ${escapeHtml(mediaClass)}</div>
-              <div class="licenseMeta">Численность населения (по данным Роскомнадзора, автоматически): ${escapeHtml(pop)}</div>
+              <div class="licenseMeta">Численность населения: ${escapeHtml(pop)}</div>
               ${notes}
             </div>
             <input class="licenseCheck" type="checkbox" data-lic-id="${escapeHtml(id)}" ${selected.has(id) ? "checked" : ""}/>
@@ -713,7 +719,7 @@
         <div class="licenseItem">
           <div class="licenseSelectAll">
             <div>Выбрать все лицензии</div>
-            <input type="checkbox" id="licSelectAll" ${allChecked ? "checked" : ""}/>
+            <input class="licenseCheck" type="checkbox" id="licSelectAll" ${allChecked ? "checked" : ""}/>
           </div>
         </div>
         ${rows}
