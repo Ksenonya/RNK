@@ -240,9 +240,9 @@
   const output = document.getElementById("output");
   const spin = document.getElementById("spin");
   const SKIP = "__SKIP__";
-  const API_BASE = location.origin.includes("onrender.com")
-    ? location.origin
-    : "https://rnk-wof7.onrender.com";
+  const API_PRIMARY = "https://rnk-wof7.onrender.com";
+  const API_FALLBACK = location.origin;
+  const API_BASE = location.origin.includes("onrender.com") ? API_FALLBACK : API_PRIMARY;
   const POP_OPTIONS = [
     { label: "менее 19 999", value: 1 },
     { label: "20 000 – 49 999", value: 20000 },
@@ -386,9 +386,36 @@
     return el.value ?? "";
   }
 
+  async function apiFetch(url, options){
+    try{
+      const res = await fetch(url, options);
+      return res;
+    }catch(e){
+      return null;
+    }
+  }
+
   async function fetchInnInfo(inn){
   try{
-    const res = await fetch(`${API_BASE}/api/inninfo?inn=${encodeURIComponent(inn)}`);
+    const res = await apiFetch(`${API_BASE}/api/inninfo?inn=${encodeURIComponent(inn)}`);
+    if(!res && API_BASE !== API_FALLBACK){
+      const res2 = await apiFetch(`${API_FALLBACK}/api/inninfo?inn=${encodeURIComponent(inn)}`);
+      if(res2) return await (async()=>{ return await fetchInnInfoWithRes(inn, res2); })();
+    }
+    if(!res){
+      setHint("Ошибка сети /api/inninfo");
+      return false;
+    }
+    return await fetchInnInfoWithRes(inn, res);
+  }catch(e){
+    A.org_name = "";
+    updateSummary();
+    setHint("Ошибка запроса /api/inninfo");
+    return false;
+  }
+}
+
+  async function fetchInnInfoWithRes(inn, res){
 
     if(!res.ok){
     A.org_name = "";
@@ -408,28 +435,39 @@
     return false;
   }
 
-
     const data = await res.json();
     A.org_name = (data && data.ok && data.org_name) ? data.org_name : "";
     updateSummary();
     setHint(A.org_name ? `Найдено: ${A.org_name}` : "По ИНН не найдено");
     return !!A.org_name;
-
-  }catch(e){
-    A.org_name = "";
-    updateSummary();
-    setHint("Ошибка запроса /api/inninfo");
-    return false;
-  }
 }
 
   async function fetchLicenses(inn){
     try{
-      const res = await fetch(`${API_BASE}/api/licenses?inn=${encodeURIComponent(inn)}`);
+      A.licenses_loading = true;
+      let res = await apiFetch(`${API_BASE}/api/licenses?inn=${encodeURIComponent(inn)}`);
+      if(!res && API_BASE !== API_FALLBACK){
+        res = await apiFetch(`${API_FALLBACK}/api/licenses?inn=${encodeURIComponent(inn)}`);
+      }
+      if(!res){
+        A.licenses_all = [];
+        A.license_ids = [];
+        A.population_by_license = null;
+        A.licenses_loading = false;
+        setHint("Ошибка сети /api/licenses");
+        return false;
+      }
       if(!res.ok){
         A.licenses_all = [];
         A.license_ids = [];
         A.population_by_license = null;
+        A.licenses_loading = false;
+        let msg = `Ошибка /api/licenses: ${res.status}`;
+        try{
+          const data = await res.json();
+          if(data && data.error) msg = data.error;
+        }catch{}
+        setHint(msg);
         return false;
       }
       const data = await res.json();
@@ -437,16 +475,21 @@
         A.licenses_all = [];
         A.license_ids = [];
         A.population_by_license = null;
+        A.licenses_loading = false;
+        setHint("Лицензии не найдены (ответ API).");
         return false;
       }
       A.licenses_all = Array.isArray(data.licenses) ? data.licenses : [];
       A.license_ids = A.licenses_all.map(x => x.license_id);
       A.population_by_license = null;
+      A.licenses_loading = false;
       return true;
     }catch(e){
       A.licenses_all = [];
       A.license_ids = [];
       A.population_by_license = null;
+      A.licenses_loading = false;
+      setHint("Ошибка запроса /api/licenses");
       return false;
     }
   }
@@ -462,6 +505,16 @@
 
   function renderLicenseSelection(){
     const items = Array.isArray(A.licenses_all) ? A.licenses_all : [];
+    if(items.length === 0 && A.inn && !A.licenses_loading){
+      A.licenses_loading = true;
+      setInputHtml(`<div class="muted">Ищу лицензии…</div>`);
+      fetchLicenses(A.inn).finally(()=>{
+        A.licenses_loading = false;
+        renderLicenseSelection();
+        updateSummary();
+      });
+      return;
+    }
     if(items.length === 0){
       setInputHtml(`<div class="muted">Лицензии по этому ИНН не найдены. Проверьте ИНН или таблицу РКН.</div>`);
       return;
@@ -1055,11 +1108,23 @@
     if(A.base_type === "expenses_q") payload.expenses_q = (A.expenses_q ?? null);
 
     try{
-      const res = await fetch(`${API_BASE}/api/calc`, {
+      let res = await apiFetch(`${API_BASE}/api/calc`, {
       method: "POST",
       headers: {"Content-Type":"application/json"},
       body: JSON.stringify(payload)
     });
+      if(!res && API_BASE !== API_FALLBACK){
+        res = await apiFetch(`${API_FALLBACK}/api/calc`, {
+          method: "POST",
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify(payload)
+        });
+      }
+
+      if(!res){
+        output.textContent = "Ошибка сети /api/calc";
+        return;
+      }
 
       const raw = await res.text();
       let text;

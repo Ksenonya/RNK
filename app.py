@@ -82,6 +82,7 @@ app.add_middleware(
         "http://localhost",
         "http://127.0.0.1:8000",
     ],
+    allow_origin_regex=r"https://.*\\.github\\.io",
     allow_methods=["*"],
     allow_headers=["*"],
 )
