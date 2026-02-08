@@ -341,6 +341,17 @@
     }, 300);
   }
 
+  function forceStopLoading(){
+    loadingCount = 0;
+    loadingValue = 100;
+    updateLoading();
+    if(loadingTimer){
+      clearInterval(loadingTimer);
+      loadingTimer = null;
+    }
+    if(loadingBox) loadingBox.style.display = "none";
+  }
+
 
   function escapeHtml(s){
     return String(s ?? "").replace(/[&<>"']/g, c => ({
@@ -647,23 +658,23 @@
     if(items.length === 0 && A.licenses_error){
       if(A._licenses_loading_ui){
         A._licenses_loading_ui = false;
-        stopLoading();
       }
+      forceStopLoading();
       setInputHtml(`<div class="muted">${escapeHtml(A.licenses_error)}</div>`);
       return;
     }
     if(items.length === 0){
       if(A._licenses_loading_ui){
         A._licenses_loading_ui = false;
-        stopLoading();
       }
+      forceStopLoading();
       setInputHtml(`<div class="muted">Лицензии по указанному ИНН не найдены. Проверьте ИНН или таблицу Роскомнадзора (РКН).</div>`);
       return;
     }
     if(A._licenses_loading_ui){
       A._licenses_loading_ui = false;
-      stopLoading();
     }
+    forceStopLoading();
 
     const selectedList = Array.isArray(A.license_ids)
       ? A.license_ids
