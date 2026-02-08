@@ -191,7 +191,7 @@
           <div class="head">
             <div class="row2">
               <div class="pill">Введённые данные</div>
-              <div class="muted">Заполняй шаги слева</div>
+              <div class="muted">Заполняйте шаги слева</div>
             </div>
           </div>
           <div class="body">
@@ -445,6 +445,7 @@
   async function fetchLicenses(inn){
     try{
       A.licenses_loading = true;
+      A.licenses_error = null;
       let res = await apiFetch(`${API_BASE}/api/licenses?inn=${encodeURIComponent(inn)}`);
       if(!res && API_BASE !== API_FALLBACK){
         res = await apiFetch(`${API_FALLBACK}/api/licenses?inn=${encodeURIComponent(inn)}`);
@@ -454,7 +455,8 @@
         A.license_ids = [];
         A.population_by_license = null;
         A.licenses_loading = false;
-        setHint("Ошибка сети /api/licenses");
+        A.licenses_error = "Ошибка сети /api/licenses";
+        setHint(A.licenses_error);
         return false;
       }
       if(!res.ok){
@@ -467,7 +469,8 @@
           const data = await res.json();
           if(data && data.error) msg = data.error;
         }catch{}
-        setHint(msg);
+        A.licenses_error = msg;
+        setHint(A.licenses_error);
         return false;
       }
       const data = await res.json();
@@ -476,13 +479,15 @@
         A.license_ids = [];
         A.population_by_license = null;
         A.licenses_loading = false;
-        setHint("Лицензии не найдены (ответ API).");
+        A.licenses_error = "Лицензии не найдены (ответ API).";
+        setHint(A.licenses_error);
         return false;
       }
       A.licenses_all = Array.isArray(data.licenses) ? data.licenses : [];
       A.license_ids = A.licenses_all.map(x => x.license_id);
       A.population_by_license = null;
       A.licenses_loading = false;
+      A.licenses_error = null;
       try{
         if(typeof render === "function" && currentStep().key === "license_ids"){
           render();
@@ -494,12 +499,13 @@
       A.license_ids = [];
       A.population_by_license = null;
       A.licenses_loading = false;
+      A.licenses_error = "Ошибка запроса /api/licenses";
       try{
         if(typeof render === "function" && currentStep().key === "license_ids"){
           render();
         }
       }catch{}
-      setHint("Ошибка запроса /api/licenses");
+      setHint(A.licenses_error);
       return false;
     }
   }
@@ -517,7 +523,7 @@
     const items = Array.isArray(A.licenses_all) ? A.licenses_all : [];
     if(items.length === 0 && A.inn && !A.licenses_loading){
       A.licenses_loading = true;
-      setInputHtml(`<div class="muted">Ищу лицензии…</div>`);
+      setInputHtml(`<div class="muted">Ищу лицензии. Это займет несколько минут.</div>`);
       fetchLicenses(A.inn).finally(()=>{
         A.licenses_loading = false;
         renderLicenseSelection();
@@ -526,7 +532,11 @@
       return;
     }
     if(items.length === 0 && A.licenses_loading){
-      setInputHtml(`<div class="muted">Ищу лицензии…</div>`);
+      setInputHtml(`<div class="muted">Ищу лицензии. Это займет несколько минут.</div>`);
+      return;
+    }
+    if(items.length === 0 && A.licenses_error){
+      setInputHtml(`<div class="muted">${escapeHtml(A.licenses_error)}</div>`);
       return;
     }
     if(items.length === 0){
@@ -681,6 +691,7 @@
   }
 
   function updateSummary(){
+    const done = A._doneSteps || {};
     const baseLabel =
       (A.base_type === "annual_revenue") ? "Годовая выручка/доход" :
       (A.base_type === "revenue_q") ? "Доходы за квартал" :
@@ -713,14 +724,14 @@
     const items = [
       ["ИНН", A.inn],
       ["Наименование", A.org_name],
-      [baseLabel, baseValue],
-      ["Лицензии (выбрано)", licenseSummary],
-      ["Интернет-ресурсы", A.internet_resources],
-      ["Среда договора", mediaLabel(A.contract_media ?? "auto")],
-      ["Член отраслевой ассоциации", (A.assoc_member===true ? "Да" : (A.assoc_member===false ? "Нет" : undefined))],
-      ["Минималка (режим)", popModeLabel],
-      ["Население по лицензиям", popByLicText],
-      ["Абоненты (суммарно)", A.subscriber_total],
+      [done.base_type ? baseLabel : undefined, done.base_type ? baseValue : undefined],
+      ["Лицензии (выбрано)", done.license_ids ? licenseSummary : undefined],
+      ["Интернет-ресурсы", done.internet_resources ? A.internet_resources : undefined],
+      ["Среда договора", done.contract_media ? mediaLabel(A.contract_media ?? "auto") : undefined],
+      ["Член отраслевой ассоциации", done.assoc_member ? (A.assoc_member===true ? "Да" : (A.assoc_member===false ? "Нет" : undefined)) : undefined],
+      ["Минималка (режим)", done.min_calc_mode ? popModeLabel : undefined],
+      ["Население по лицензиям", (done.population_by_license || done.population_confirm) ? popByLicText : undefined],
+      ["Абоненты (суммарно)", done.subscriber_total ? A.subscriber_total : undefined],
                 ];
 
     const rows = items
@@ -732,7 +743,7 @@
         </div>
       `).join("");
 
-    summary.innerHTML = rows || `<div style="opacity:.7;">Заполняй шаги слева</div>`;
+    summary.innerHTML = rows || `<div style="opacity:.7;">Заполняйте шаги слева</div>`;
   }
 
   const steps = [
@@ -1038,6 +1049,8 @@
 
   function applyValue(step, parsed){
     if(step.key === "__finish__") return;
+    if(!A._doneSteps) A._doneSteps = {};
+    A._doneSteps[step.key] = true;
     if(step.key === "license_ids"){
       A.license_ids = Array.isArray(parsed) ? parsed : [];
       if(A.population_by_license){
