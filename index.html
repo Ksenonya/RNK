@@ -1,0 +1,1183 @@
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>РАО — Расчёт</title>
+  <style>
+    :root{
+      --bg:#0b1220;
+      --card:#0f1a2d;
+      --text:#e8eefc;
+      --muted:#a8b4d6;
+      --line:rgba(255,255,255,.10);
+      --accent:#4f8cff;
+      --accent2:#2dd4bf;
+      --danger:#ff5a6b;
+      --shadow: 0 18px 45px rgba(0,0,0,.35);
+      --radius: 16px;
+    }
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      background:
+        radial-gradient(1200px 700px at 10% 0%, rgba(79,140,255,.18), transparent 55%),
+        radial-gradient(1000px 600px at 90% 20%, rgba(45,212,191,.14), transparent 55%),
+        var(--bg);
+      color:var(--text);
+    }
+    .wrap{ max-width: 1060px; margin: 28px auto; padding: 0 16px; }
+    .topbar{ display:flex; gap:16px; align-items:flex-start; justify-content:space-between; margin-bottom: 16px; }
+    .brand{ display:flex; flex-direction:column; gap:6px; }
+    .brand h1{ font-size: 20px; margin:0; letter-spacing:.2px; }
+    .brand p{ margin:0; color:var(--muted); font-size: 14px; line-height: 1.35; }
+    .grid{ display:grid; grid-template-columns: 1.1fr .9fr; gap: 16px; }
+    @media (max-width: 920px){ .grid{ grid-template-columns:1fr; } }
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .card .head{ padding: 16px 16px 12px 16px; border-bottom: 1px solid var(--line); background: rgba(0,0,0,.15); }
+    .card .body{ padding: 16px; }
+
+    .progressRow{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top: 10px; }
+    .progress{ flex:1; height: 10px; background: rgba(255,255,255,.08); border-radius: 999px; overflow:hidden; border: 1px solid rgba(255,255,255,.06); }
+    .progress > div{ height:100%; width:0%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 999px; transition: width .25s ease; }
+    .progressLabel{ font-size: 12px; color:var(--muted); white-space:nowrap; }
+
+    .questionTitle{ font-size: 16px; margin: 0 0 8px 0; }
+    .questionText{ margin: 0 0 14px 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
+
+    label{ display:block; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+    input, select{
+      width:100%;
+      padding: 12px 12px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 12px;
+      color: var(--text);
+      outline:none;
+      transition: border-color .15s ease, box-shadow .15s ease;
+    }
+    input::placeholder{ color: rgba(168,180,214,.65); }
+    input:focus, select:focus{ border-color: rgba(79,140,255,.55); box-shadow: 0 0 0 4px rgba(79,140,255,.12); }
+
+    .error{
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,90,107,.35);
+      background: rgba(255,90,107,.10);
+      color: #ffd2d8;
+      font-size: 13px;
+      display:none;
+    }
+    .actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top: 14px; }
+    .btn{
+      appearance:none; border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 12px;
+      cursor:pointer;
+      font-weight: 600;
+      font-size: 14px;
+      transition: transform .06s ease, background .15s ease, border-color .15s ease;
+      display:inline-flex; align-items:center; gap:8px;
+      user-select:none;
+    }
+    .btn:hover{ background: rgba(255,255,255,.09); }
+    .btn:active{ transform: translateY(1px); }
+    .btn[disabled]{ opacity:.5; cursor:not-allowed; }
+    .btnPrimary{ background: linear-gradient(90deg, rgba(79,140,255,.95), rgba(45,212,191,.70)); border-color: rgba(255,255,255,.10); color: #08101f; }
+    .btnGhost{ background: transparent; }
+    .btnDanger{ border-color: rgba(255,90,107,.28); background: rgba(255,90,107,.10); color:#ffd2d8; }
+
+    .pill{
+      display:inline-flex; align-items:center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.10);
+      color: var(--muted);
+      font-size: 12px;
+      gap: 8px;
+    }
+
+    .kv{ display:grid; grid-template-columns: 1fr; gap:10px; }
+    .kv .item{ padding: 12px; border-radius: 14px; border: 1px solid var(--line); background: rgba(0,0,0,.18); }
+    .kv .k{ font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .kv .v{ font-size: 14px; color: var(--text); word-break: break-word; }
+
+    pre{
+      margin:0;
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.25);
+      white-space: pre-wrap;
+      min-height: 140px;
+      color: #dfe8ff;
+      font-size: 13px;
+      line-height: 1.35;
+    }
+    .row2{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom: 10px; }
+    .spinner{
+      width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,.25);
+      border-top-color: rgba(255,255,255,.85);
+      border-radius: 999px;
+      animation: spin .8s linear infinite;
+      display:none;
+    }
+    @keyframes spin{ to{ transform: rotate(360deg);} }
+    .muted{ color: var(--muted); font-size: 13px; }
+    
+    #inputBox label { display: none; }
+
+    .licenseList{ display:flex; flex-direction:column; gap:10px; }
+    .licenseItem{ padding:12px; border-radius:12px; border:1px solid var(--line); background: rgba(0,0,0,.18); }
+    .licenseHeader{ display:flex; align-items:flex-start; gap:10px; }
+    .licenseMeta{ font-size:12px; color: var(--muted); margin-top:4px; }
+    .licenseControls{ margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; }
+    .licenseSelect{ width:100%; }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="brand">
+        <h1>РАО </h1>
+        <p>Расчёт ставок теле- и радиовещателей</b></p>
+      </div>
+      <div class="pill">API: /api/calc</div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="head">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+            <div class="pill" id="stepPill">Шаг 1</div>
+            <div class="progressLabel" id="progressLabel">0%</div>
+          </div>
+          <div class="progressRow">
+            <div class="progress"><div id="progressBar"></div></div>
+          </div>
+        </div>
+
+        <div class="body">
+          <h2 class="questionTitle" id="qTitle">Вопрос</h2>
+          <p class="questionText" id="qText"></p>
+
+          <div id="inputBox"></div>
+          <div class="error" id="errBox"></div>
+          <div class="muted" id="hintBox" style="margin-top:10px; display:none;"></div>
+
+
+          <div class="actions">
+            <button class="btn btnGhost" id="backBtn">← Назад</button>
+            <button class="btn btnPrimary" id="nextBtn">Далее →</button>
+            <button class="btn btnDanger" id="restartBtn">Начать заново</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:16px;">
+        <div class="card">
+          <div class="head">
+            <div class="row2">
+              <div class="pill">Введённые данные</div>
+              <div class="muted">Заполняй шаги слева</div>
+            </div>
+          </div>
+          <div class="body">
+            <div class="kv" id="summary"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="head">
+            <div class="row2">
+              <div class="pill">Результат</div>
+              <div style="display:flex; align-items:center; gap:10px;">
+                <div class="spinner" id="spin"></div>
+                <button class="btn" id="copyBtn">Скопировать</button>
+              </div>
+            </div>
+          </div>
+          <div class="body">
+            <pre id="output">Результат появится здесь после расчёта.</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+ <script>
+  const A = {};
+
+  const qTitle = document.getElementById("qTitle");
+  const footerHelp = document.getElementById("footerHelp");
+  const qText  = document.getElementById("qText");
+  const inputBox = document.getElementById("inputBox");
+  const errBox = document.getElementById("errBox");
+  const hintBox = document.getElementById("hintBox");
+
+  const backBtn = document.getElementById("backBtn");
+  const nextBtn = document.getElementById("nextBtn");
+  const restartBtn = document.getElementById("restartBtn");
+  const copyBtn = document.getElementById("copyBtn");
+
+  const stepPill = document.getElementById("stepPill");
+  const progressLabel = document.getElementById("progressLabel");
+  const progressBar = document.getElementById("progressBar");
+
+  const summary = document.getElementById("summary");
+  const output = document.getElementById("output");
+  const spin = document.getElementById("spin");
+  const SKIP = "__SKIP__";
+  const POP_OPTIONS = [
+    { label: "менее 19 999", value: 1 },
+    { label: "20 000 – 49 999", value: 20000 },
+    { label: "50 000 – 149 999", value: 50000 },
+    { label: "150 000 – 299 999", value: 150000 },
+    { label: "300 000 – 599 999", value: 300000 },
+    { label: "600 000 – 999 999", value: 600000 },
+    { label: "1 000 000 – 1 999 999", value: 1000000 },
+    { label: "2 000 000 – 3 999 999", value: 2000000 },
+    { label: "более 4 000 000", value: 4000001 }
+  ];
+
+
+  function escapeHtml(s){
+    return String(s ?? "").replace(/[&<>"']/g, c => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[c]));
+  }
+
+  function isEmptyOrDash(v){
+    if(v == null) return true;
+    const s = String(v).trim().toLowerCase();
+    return s === "" || s === "-" || s === "—" || s === "–" || s === "нет";
+  }
+
+  function parseFloatMaybe(v){
+    if(isEmptyOrDash(v)) return null;
+    const s = String(v).trim().replace(/\s+/g,"").replace(",",".");
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function parseIntMaybe(v){
+    if(isEmptyOrDash(v)) return null;
+    const s = String(v).trim().replace(/\s+/g,"");
+    const n = Number(s);
+    if(!Number.isFinite(n)) return null;
+    return Math.trunc(n);
+  }
+
+  function parsePositiveInt(v){
+    if(isEmptyOrDash(v)) return null;
+    const s = String(v).trim().replace(/\s+/g,"");
+    if(!s) return null;
+    if(!/^\d+$/.test(s)) return null;
+    const n = Number(s);
+    if(!Number.isFinite(n)) return null;
+    return Math.trunc(n);
+  }
+
+  function setError(msg){
+    errBox.textContent = msg || "";
+    errBox.style.display = msg ? "block" : "none";
+  }
+   
+  function setHint(msg){
+  hintBox.textContent = msg || "";
+  hintBox.style.display = msg ? "block" : "none";
+  }
+
+  function setInputText({label, placeholder="", value=""}){
+    inputBox.innerHTML = `
+      <label>${escapeHtml(label)}</label>
+      <input id="userInput" type="text" placeholder="${escapeHtml(placeholder)}" value="${escapeHtml(String(value ?? ""))}"/>
+    `;
+    const el = document.getElementById("userInput");
+    el.focus();
+    el.addEventListener("keydown", (e)=>{
+      if(e.key === "Enter"){ e.preventDefault(); nextBtn.click(); }
+    });
+  }
+
+  function setInputSelect({label, choices, value}){
+    const opts = choices.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+    inputBox.innerHTML = `
+      <label>${escapeHtml(label)}</label>
+      <select id="userInput">${opts}</select>
+    `;
+    const el = document.getElementById("userInput");
+    if(value != null) el.value = value;
+    el.focus();
+    el.addEventListener("keydown", (e)=>{
+      if(e.key === "Enter"){ e.preventDefault(); nextBtn.click(); }
+    });
+  }
+
+  function setInputHtml(html){
+    inputBox.innerHTML = html;
+  }
+
+  function populationLabelByValue(v){
+    const hit = POP_OPTIONS.find(o => Number(o.value) === Number(v));
+    return hit ? hit.label : String(v ?? "");
+  }
+
+  function populationOptionsHtml(selected){
+    const opts = [`<option value="">Выберите…</option>`];
+    for(const o of POP_OPTIONS){
+      const sel = (Number(selected) === Number(o.value)) ? "selected" : "";
+      opts.push(`<option value="${o.value}" ${sel}>${escapeHtml(o.label)}</option>`);
+    }
+    return opts.join("");
+  }
+
+  function getSelectedLicenseIdsFromDOM(){
+    const boxes = inputBox.querySelectorAll("input[data-lic-id]");
+    return Array.from(boxes)
+      .filter(b => b.checked)
+      .map(b => b.getAttribute("data-lic-id"));
+  }
+
+  function getPopulationByLicenseFromDOM(){
+    const selects = inputBox.querySelectorAll("select[data-lic-id]");
+    const out = {};
+    selects.forEach(sel => {
+      if(sel.disabled) return;
+      const id = sel.getAttribute("data-lic-id");
+      const v = sel.value;
+      if(id && v){
+        const n = Number(v);
+        if(Number.isFinite(n)) out[id] = Math.trunc(n);
+      }
+    });
+    return out;
+  }
+
+  function getPopulationByLicenseNumericFromDOM(){
+    const inputs = inputBox.querySelectorAll("input[data-pop-lic-id]");
+    const out = {};
+    inputs.forEach(inp => {
+      const id = inp.getAttribute("data-pop-lic-id");
+      const n = parsePositiveInt(inp.value);
+      if(id && n !== null) out[id] = n;
+    });
+    return out;
+  }
+
+  function getUserInput(){
+    const el = document.getElementById("userInput");
+    if(!el) return "";
+    return el.value ?? "";
+  }
+
+  async function fetchInnInfo(inn){
+  try{
+    const res = await fetch(`/api/inninfo?inn=${encodeURIComponent(inn)}`);
+
+    if(!res.ok){
+    A.org_name = "";
+    updateSummary();
+  
+    let msg = "По ИНН не найдено";
+    if(res.status !== 404){
+      try{
+        const data = await res.json();
+        msg = "Ошибка /api/inninfo: " + (data.error || res.status);
+      }catch{
+        msg = "Ошибка /api/inninfo: " + res.status;
+      }
+    }
+  
+    setHint(msg);
+    return false;
+  }
+
+
+    const data = await res.json();
+    A.org_name = (data && data.ok && data.org_name) ? data.org_name : "";
+    updateSummary();
+    setHint(A.org_name ? `Найдено: ${A.org_name}` : "По ИНН не найдено");
+    return !!A.org_name;
+
+  }catch(e){
+    A.org_name = "";
+    updateSummary();
+    setHint("Ошибка запроса /api/inninfo");
+    return false;
+  }
+}
+
+  async function fetchLicenses(inn){
+    try{
+      const res = await fetch(`/api/licenses?inn=${encodeURIComponent(inn)}`);
+      if(!res.ok){
+        A.licenses_all = [];
+        A.license_ids = [];
+        A.population_by_license = null;
+        return false;
+      }
+      const data = await res.json();
+      if(!data || !data.ok){
+        A.licenses_all = [];
+        A.license_ids = [];
+        A.population_by_license = null;
+        return false;
+      }
+      A.licenses_all = Array.isArray(data.licenses) ? data.licenses : [];
+      A.license_ids = A.licenses_all.map(x => x.license_id);
+      A.population_by_license = null;
+      return true;
+    }catch(e){
+      A.licenses_all = [];
+      A.license_ids = [];
+      A.population_by_license = null;
+      return false;
+    }
+  }
+
+
+  function mediaLabel(code){
+    if(code === "auto") return "Авто (как в лицензиях)";
+    if(code === "air") return "В эфире";
+    if(code === "cable") return "По кабелю";
+    if(code === "both") return "Одновременно в эфире и по кабелю";
+    return "Авто (как в лицензиях)";
+  }
+
+  function renderLicenseSelection(){
+    const items = Array.isArray(A.licenses_all) ? A.licenses_all : [];
+    if(items.length === 0){
+      setInputHtml(`<div class="muted">Лицензии по этому ИНН не найдены. Проверьте ИНН или таблицу РКН.</div>`);
+      return;
+    }
+
+    const selectedList = Array.isArray(A.license_ids)
+      ? A.license_ids
+      : items.map(x => x.license_id);
+    const selected = new Set(selectedList);
+    const allChecked = selectedList.length === items.length;
+
+    const rows = items.map(lic => {
+      const id = lic.license_id;
+      const pop = (lic.population_total != null) ? String(lic.population_total).replace(/\B(?=(\d{3})+(?!\d))/g, " ") : "не найдено";
+      const notes = Array.isArray(lic.population_notes) && lic.population_notes.length
+        ? `<div class="licenseMeta">${escapeHtml(lic.population_notes.join("; "))}</div>`
+        : "";
+      return `
+        <div class="licenseItem">
+          <div class="licenseHeader">
+            <input type="checkbox" data-lic-id="${escapeHtml(id)}" ${selected.has(id) ? "checked" : ""}/>
+            <div>
+              <div><strong>${escapeHtml(id)}</strong></div>
+              <div class="licenseMeta">Среда: ${escapeHtml(lic.media_raw || "—")} → ${escapeHtml(lic.media_class || "—")}</div>
+              <div class="licenseMeta">Население (РКН/авто): ${escapeHtml(pop)}</div>
+              ${notes}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    setInputHtml(`
+      <div class="licenseList">
+        <div class="licenseItem">
+          <label style="display:flex; align-items:center; gap:8px;">
+            <input type="checkbox" id="licSelectAll" ${allChecked ? "checked" : ""}/>
+            Выбрать все лицензии
+          </label>
+        </div>
+        ${rows}
+      </div>
+    `);
+
+    const allBox = document.getElementById("licSelectAll");
+    if(allBox){
+      allBox.addEventListener("change", ()=>{
+        const boxes = inputBox.querySelectorAll("input[data-lic-id]");
+        boxes.forEach(b => { b.checked = allBox.checked; });
+        A.license_ids = getSelectedLicenseIdsFromDOM();
+        updateSummary();
+      });
+    }
+    const boxes = inputBox.querySelectorAll("input[data-lic-id]");
+    boxes.forEach(b => {
+      b.addEventListener("change", ()=>{
+        A.license_ids = getSelectedLicenseIdsFromDOM();
+        if(allBox){
+          allBox.checked = (A.license_ids.length === items.length);
+        }
+        updateSummary();
+      });
+    });
+  }
+
+  function renderPopulationByLicense(){
+    const selected = Array.isArray(A.license_ids) ? A.license_ids : [];
+    const items = Array.isArray(A.licenses_all) ? A.licenses_all : [];
+    if(items.length === 0){
+      setInputHtml(`<div class="muted">Список лицензий пуст.</div>`);
+      return;
+    }
+    if(selected.length === 0){
+      setInputHtml(`<div class="muted">Сначала выберите лицензии.</div>`);
+      return;
+    }
+    const selectedSet = new Set(selected);
+
+    const rows = items.map(lic => {
+      const id = lic.license_id;
+      const isSelected = selectedSet.has(id);
+      const autoPop = lic.population_total != null ? String(lic.population_total).replace(/\B(?=(\d{3})+(?!\d))/g, " ") : "не найдено";
+      const current = A.population_by_license ? A.population_by_license[id] : null;
+      return `
+        <div class="licenseItem">
+          <div><strong>${escapeHtml(id)}</strong></div>
+          <div class="licenseMeta">Авто по РКН: ${escapeHtml(autoPop)}</div>
+          <div class="licenseMeta">${isSelected ? "Участвует в расчёте" : "Не участвует в расчёте"}</div>
+          <div class="licenseControls">
+            <select class="licenseSelect" data-lic-id="${escapeHtml(id)}" ${isSelected ? "" : "disabled"}>
+              ${populationOptionsHtml(current)}
+            </select>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    setInputHtml(`<div class="licenseList">${rows}</div>`);
+
+    const selects = inputBox.querySelectorAll("select[data-lic-id]");
+    A.population_by_license = getPopulationByLicenseFromDOM();
+    updateSummary();
+    selects.forEach(sel => {
+      sel.addEventListener("change", ()=>{
+        A.population_by_license = getPopulationByLicenseFromDOM();
+        updateSummary();
+      });
+    });
+  }
+
+  function renderPopulationConfirm(){
+    const selected = Array.isArray(A.license_ids) ? A.license_ids : [];
+    const items = Array.isArray(A.licenses_all) ? A.licenses_all : [];
+    if(selected.length === 0){
+      setInputHtml(`<div class="muted">Сначала выберите лицензии.</div>`);
+      return;
+    }
+    const byId = {};
+    items.forEach(x => { byId[x.license_id] = x; });
+
+    const rows = selected.map(id => {
+      const lic = byId[id] || {};
+      const autoPopRaw = (lic.population_total != null) ? String(lic.population_total) : "";
+      const autoPop = autoPopRaw ? autoPopRaw.replace(/\B(?=(\d{3})+(?!\d))/g, " ") : "не найдено";
+      const current = (A.population_by_license && A.population_by_license[id] != null)
+        ? A.population_by_license[id]
+        : (lic.population_total != null ? lic.population_total : "");
+      return `
+        <div class="licenseItem">
+          <div><strong>${escapeHtml(id)}</strong></div>
+          <div class="licenseMeta">Авто по РКН: ${escapeHtml(autoPop)}</div>
+          <div class="licenseControls">
+            <input type="text" class="licenseSelect" data-pop-lic-id="${escapeHtml(id)}" placeholder="например 987000" value="${escapeHtml(String(current))}"/>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    setInputHtml(`<div class="licenseList">${rows}</div>`);
+
+    const inputs = inputBox.querySelectorAll("input[data-pop-lic-id]");
+    A.population_by_license = getPopulationByLicenseNumericFromDOM();
+    updateSummary();
+    inputs.forEach(inp => {
+      inp.addEventListener("input", ()=>{
+        A.population_by_license = getPopulationByLicenseNumericFromDOM();
+        updateSummary();
+      });
+    });
+  }
+
+  function updateSummary(){
+    const baseLabel =
+      (A.base_type === "annual_revenue") ? "Годовая выручка/доход" :
+      (A.base_type === "revenue_q") ? "Доходы за квартал" :
+      (A.base_type === "expenses_q") ? "Расходы за квартал" :
+      "Финансовая база";
+
+    const baseValue =
+      (A.base_type === "revenue_q") ? A.revenue_q :
+      (A.base_type === "annual_revenue") ? A.annual_revenue :
+      (A.base_type === "expenses_q") ? A.expenses_q :
+      "не указана";
+
+    const licenseIds = Array.isArray(A.license_ids) ? A.license_ids : [];
+    const licenseSummary = licenseIds.length ? `${licenseIds.length}: ${licenseIds.join(", ")}` : undefined;
+
+    const popModeLabel =
+      (A.min_calc_mode === "subs") ? "По абонентам" :
+      (A.population_mode === "manual") ? "Ручной по лицензиям" :
+      (A.population_mode === "auto") ? "Авто (РКН)" :
+      undefined;
+
+    let popByLicText;
+    if((A.population_mode === "manual" || A.population_mode === "auto") && A.population_by_license){
+      const parts = Object.entries(A.population_by_license)
+        .map(([k,v]) => `${k}=${populationLabelByValue(v)}`)
+        .join("; ");
+      popByLicText = parts || undefined;
+    }
+
+    const items = [
+      ["ИНН", A.inn],
+      ["Наименование", A.org_name],
+      [baseLabel, baseValue],
+      ["Лицензии (выбрано)", licenseSummary],
+      ["Интернет-ресурсы", A.internet_resources],
+      ["Среда договора", mediaLabel(A.contract_media ?? "auto")],
+      ["Член отраслевой ассоциации", (A.assoc_member===true ? "Да" : (A.assoc_member===false ? "Нет" : undefined))],
+      ["Минималка (режим)", popModeLabel],
+      ["Население по лицензиям", popByLicText],
+      ["Абоненты (суммарно)", A.subscriber_total],
+                ];
+
+    const rows = items
+      .filter(([_,v]) => v !== undefined && v !== null && v !== "")
+      .map(([k,v]) => `
+        <div style="display:flex; justify-content:space-between; gap:12px; padding:6px 0; border-bottom:1px solid rgba(255,255,255,.06);">
+          <div style="opacity:.8;">${escapeHtml(k)}</div>
+          <div style="font-weight:600; text-align:right;">${escapeHtml(v)}</div>
+        </div>
+      `).join("");
+
+    summary.innerHTML = rows || `<div style="opacity:.7;">Заполняй шаги слева</div>`;
+  }
+
+  const steps = [
+    {
+      key:"inn",
+      title:"ИНН организации",
+      text:"Введите ИНН (10 или 12 цифр, без пробелов).",
+      render: ()=> setInputText({label:"ИНН", placeholder:"например 0326499787"}),
+      validate: (v)=> (/^\d{10}$|^\d{12}$/.test(v.trim()) ? v.trim() : null),
+      error: "ИНН должен состоять из 10 или 12 цифр."
+    },
+    {
+      key:"base_type",
+      title:"Финансовая база",
+      text:"Что есть у пользователя для расчёта процента?",
+      render: ()=> setInputSelect({
+        label:"Выберите базу",
+        choices:[
+          "Доходы за квартал",
+          "Годовая выручка/доход",
+          "Расходы за квартал (если нет доходов)",
+          "Нет данных"
+        ],
+        value: (A.base_type === "revenue_q") ? "Доходы за квартал"
+             : (A.base_type === "annual_revenue") ? "Годовая выручка/доход"
+             : (A.base_type === "expenses_q") ? "Расходы за квартал (если нет доходов)"
+             : "Нет данных"
+      }),
+      validate: (v)=>{
+        if(v === "Доходы за квартал") return "revenue_q";
+        if(v === "Годовая выручка/доход") return "annual_revenue";
+        if(v === "Расходы за квартал (если нет доходов)") return "expenses_q";
+        if(v === "Нет данных") return SKIP;
+        return null;
+      },
+      error:"Выберите вариант."
+    },
+    {
+    key:"revenue_q",
+    title:"Доходы за квартал",
+    text:"Введите доходы за квартал. Если данных нет — нажмите «Далее».",
+    when: ()=> A.base_type === "revenue_q",
+    render: ()=> setInputText({label:"Доход за квартал", placeholder:"например 1250000 или -"}),
+    validate: (v)=>{
+      if (isEmptyOrDash(v)) return SKIP;
+      const n = parseFloatMaybe(v);
+      if(n === null || !Number.isFinite(n) || n < 0) return null;
+      return n;
+    },
+    error:"Введите число ≥ 0 или «-»."
+    },
+    {
+    key:"annual_revenue",
+    title:"Годовая выручка",
+    text:"Введите сумму годовой выручки/дохода. Если данных нет — нажмите «Далее».",
+    when: ()=> A.base_type === "annual_revenue",
+    render: ()=> setInputText({label:"Годовая выручка", placeholder:"например 5000000 или -"}),
+    validate: (v)=>{
+      if (isEmptyOrDash(v)) return SKIP;
+      const n = parseFloatMaybe(v);
+      if(n === null || !Number.isFinite(n) || n < 0) return null;
+      return n;
+    },
+    error:"Введите число ≥ 0 или «-»."
+    },
+    {
+    key:"expenses_q",
+    title:"Расходы за квартал",
+    text:"Введите расходы за квартал (число ≥ 0). Если данных нет — поставьте «-».",
+    when: ()=> A.base_type === "expenses_q",
+    render: ()=> setInputText({label:"Расходы за квартал", placeholder:"например 900000 или -"}),
+    validate: (v)=>{
+      if (isEmptyOrDash(v)) return SKIP;
+      const n = parseFloatMaybe(v);
+      if(n === null || !Number.isFinite(n) || n < 0) return null;
+      return n;
+    },
+    error:"Введите число ≥ 0 или «-»."
+    },
+
+    {
+      key:"internet_resources",
+      title:"Интернет-ресурсы",
+      text:"Сколько интернет-ресурсов?",
+      render: ()=> setInputText({label:"Интернет-ресурсы", placeholder:"0", value: (A.internet_resources ?? 0)}),
+      validate: (v)=>{
+        const n = parseIntMaybe(v);
+        if(!Number.isInteger(n) || n < 0 || n > 1000) return null;
+        return n;
+      },
+      error:"Введите целое число от 0 до 1000."
+    },
+    {
+      key:"contract_media",
+      title:"Среда договора",
+      text:"Выберите среду договора.",
+      render: ()=> setInputSelect({
+        label:"Среда договора",
+        choices:[
+          "Авто (как в лицензиях)",
+          "В эфире",
+          "По кабелю",
+          "Одновременно в эфире и по кабелю"
+        ],
+        value: mediaLabel(A.contract_media ?? "auto")
+      }),
+      validate: (v)=>{
+        if(v === "Авто (как в лицензиях)") return "auto";
+        if(v === "В эфире") return "air";
+        if(v === "По кабелю") return "cable";
+        if(v === "Одновременно в эфире и по кабелю") return "both";
+        return null;
+      },
+      error:"Выберите один из вариантов."
+    },
+    {
+      key:"license_ids",
+      title:"Выбор лицензий",
+      text:"Отметьте лицензии, которые участвуют в расчёте.",
+      render: ()=> {
+        renderLicenseSelection();
+        const count = Array.isArray(A.licenses_all) ? A.licenses_all.length : 0;
+        setHint(count ? `Найдено лицензий: ${count}.` : "Лицензии не найдены.");
+      },
+      validate: ()=>{
+        const ids = getSelectedLicenseIdsFromDOM();
+        if(!ids || ids.length === 0) return null;
+        return ids;
+      },
+      error:"Выберите хотя бы одну лицензию."
+    },
+    {
+  key:"min_calc_mode",
+  title:"Минимальная сумма",
+  text:"Производить расчёт по количеству абонентов или по населению?",
+  render: ()=> setInputSelect({
+    label:"Выберите вариант",
+    choices:[
+      "По количеству абонентов",
+      "По населению"
+    ],
+    value: (A.min_calc_mode === "subs") ? "По количеству абонентов"
+         : (A.min_calc_mode === "pop") ? "По населению"
+         : "По населению"
+  }),
+  validate: (v)=>{
+    if(v === "По количеству абонентов") return "subs";
+    if(v === "По населению") return "pop";
+    return null;
+  },
+  error:"Выберите вариант."
+},
+
+{
+  key:"subscriber_total",
+  title:"Количество абонентов",
+  text:"Введите суммарное количество абонентов всех операторов, распространяющих телеканал. Если не нужно — нажмите «Далее» и выберите расчёт по населению.",
+  when: ()=> A.min_calc_mode === "subs",
+  render: ()=> setInputText({label:"Суммарное количество абонентов", placeholder:"например 25000"}),
+  validate: (v)=>{
+    if(isEmptyOrDash(v)) return SKIP; // чтобы можно было быстро уйти на «по населению»
+    const n = parseIntMaybe(v);
+    if(!Number.isInteger(n) || n < 0) return null;
+    return n;
+  },
+  error:"Введите целое число ≥ 0."
+},
+
+{
+  key:"population_mode",
+  title:"Население",
+  text:"Как рассчитать население для минимальной суммы?",
+  when: ()=> A.min_calc_mode === "pop",
+  render: ()=> {
+    setInputSelect({
+      label:"Режим",
+      choices:[
+        "Автоматически по РКН (с подтверждением)",
+        "Рассчитать вручную"
+      ],
+      value: (A.population_mode === "manual") ? "Рассчитать вручную" : "Автоматически по РКН (с подтверждением)"
+    });
+    const selected = Array.isArray(A.license_ids) ? A.license_ids : [];
+    const items = Array.isArray(A.licenses_all) ? A.licenses_all : [];
+    const byId = {};
+    items.forEach(x => { byId[x.license_id] = x; });
+    const missing = selected.filter(id => !byId[id] || byId[id].population_total == null);
+    if(missing.length){
+      setHint(`По лицензиям без населения: ${missing.join(", ")}. Можно выбрать вручную.`);
+    }else{
+      setHint("Население берётся из РКН и автоматически нормализуется, затем нужно подтвердить.");
+    }
+  },
+  validate: (v)=>{
+    if(v === "Автоматически по РКН (с подтверждением)") return "auto";
+    if(v === "Рассчитать вручную") return "manual";
+    return null;
+  },
+  error:"Выберите вариант."
+},
+
+{
+  key:"population_confirm",
+  title:"Подтверждение населения",
+  text:"Проверьте население для каждой выбранной лицензии. Верный формат только числовой, например 987000.",
+  when: ()=> A.min_calc_mode === "pop" && A.population_mode === "auto",
+  render: ()=> {
+    renderPopulationConfirm();
+    setHint("Верный формат только числовой, например 987000.");
+  },
+  validate: ()=>{
+    const selected = Array.isArray(A.license_ids) ? A.license_ids : [];
+    const map = getPopulationByLicenseNumericFromDOM();
+    if(selected.length === 0) return null;
+    for(const id of selected){
+      if(!(id in map)) return null;
+    }
+    return map;
+  },
+  error:"Введите население числом для каждой выбранной лицензии."
+},
+
+{
+  key:"population_by_license",
+  title:"Население по лицензиям",
+  text:"Для каждой выбранной лицензии выберите категорию населения.",
+  when: ()=> A.min_calc_mode === "pop" && A.population_mode === "manual",
+  render: ()=> renderPopulationByLicense(),
+  validate: ()=>{
+    const selected = Array.isArray(A.license_ids) ? A.license_ids : [];
+    const map = getPopulationByLicenseFromDOM();
+    if(selected.length === 0) return null;
+    for(const id of selected){
+      if(!(id in map)) return null;
+    }
+    return map;
+  },
+  error:"Выберите население для каждой отмеченной лицензии."
+},
+
+    {
+      key:"assoc_member",
+      title:"Член отраслевой ассоциации?",
+      text:"Является ли пользователь членом отраслевой ассоциации?",
+      render: ()=> setInputSelect({
+        label:"Член ассоциации?",
+        choices:["Нет","Да"],
+        value:(A.assoc_member === true ? "Да" : "Нет")
+      }),
+      validate: (v)=> (v === "Да"),
+      error:"Выберите «Да» или «Нет»."
+    },
+    {
+    key:"__finish__",
+    title:"Готово к расчёту",
+    text:"Нажми «Рассчитать», чтобы выполнить расчёт и показать результат.",
+    render: ()=> { inputBox.innerHTML = ""; },
+    validate: ()=> "__finish__"
+    },
+  ];
+
+  let idx = 0;
+  const history = [];
+
+  function visibleStepsCount(){
+    return steps.filter(s => (s.when ? s.when() : true)).length;
+  }
+
+  function updateProgress(){
+    const total = visibleStepsCount();
+    const currentVisibleIndex = Math.min(history.length + 1, total);
+    const pct = Math.round((currentVisibleIndex / total) * 100);
+
+    stepPill.textContent = `Шаг ${currentVisibleIndex}`;
+    progressLabel.textContent = `${pct}%`;
+    progressBar.style.width = `${pct}%`;
+  }
+
+  function currentStep(){ return steps[idx]; }
+
+  function render(){
+    let step = currentStep();
+    while(step && step.when && !step.when()){
+      idx++;
+      step = currentStep();
+    }
+
+    setError("");
+    qTitle.textContent = step.title;
+    qText.textContent = step.text || "";
+    setHint("");
+    step.render?.();
+    
+    if(footerHelp){
+    footerHelp.style.display = (step.key === "__finish__") ? "none" : "block";
+    }
+    updateSummary();
+    updateProgress();
+
+    backBtn.disabled = (history.length === 0);
+    nextBtn.textContent = (step.key === "__finish__") ? "Рассчитать →" : "Далее →";
+  }
+
+  function applyValue(step, parsed){
+    if(step.key === "__finish__") return;
+    if(step.key === "license_ids"){
+      A.license_ids = Array.isArray(parsed) ? parsed : [];
+      if(A.population_by_license){
+        const keep = new Set(A.license_ids);
+        for(const k of Object.keys(A.population_by_license)){
+          if(!keep.has(k)) delete A.population_by_license[k];
+        }
+      }
+      return;
+    }
+    if(step.key === "min_calc_mode"){
+      A.min_calc_mode = parsed;
+      if(parsed === "subs"){
+        A.population_mode = "auto";
+        A.population_by_license = null;
+      }else if(parsed === "pop"){
+        A.subscriber_total = null;
+      }
+      return;
+    }
+    if(step.key === "population_mode"){
+      A.population_mode = parsed;
+      if(parsed === "auto"){
+        A.population_by_license = null;
+      }
+      return;
+    }
+    if(step.key === "population_confirm"){
+      A.population_by_license = parsed;
+      return;
+    }
+    if(step.key === "population_by_license"){
+      A.population_by_license = parsed;
+      return;
+    }
+    A[step.key] = parsed;
+  }
+
+  function back(){
+    if(history.length === 0) return;
+    idx = history.pop();
+    render();
+  }
+
+  function restart(){
+    for(const k of Object.keys(A)) delete A[k];
+    idx = 0;
+    history.length = 0;
+    output.textContent = "Результат появится здесь после расчёта.";
+    render();
+  }
+
+  async function runCalc(){
+    output.textContent = "";
+    spin.style.display = "inline-block";
+
+    const payload = {
+      inn: A.inn,
+    
+      annual_revenue: null,
+      revenue_q: null,
+      expenses_q: null,
+    
+      internet_resources: (A.internet_resources ?? 0),
+      contract_media: (A.contract_media ?? "auto"),
+    
+      new_user: (A.worked_before === false),
+      assoc_member: (A.assoc_member ?? false),
+
+      only_license: (A.only_license ?? null),
+      license_ids: (A.license_ids ?? null),
+    
+      subscriber_total: (A.min_calc_mode === "subs") ? (A.subscriber_total ?? null) : null,
+      population_override: null,
+      population_by_license: (A.min_calc_mode === "pop") ? (A.population_by_license ?? null) : null,
+    
+      small_income_mode: (A.small_income_mode ?? "auto"),
+    };
+
+    if(A.base_type === "annual_revenue") payload.annual_revenue = (A.annual_revenue ?? null);
+    if(A.base_type === "revenue_q") payload.revenue_q = (A.revenue_q ?? null);
+    if(A.base_type === "expenses_q") payload.expenses_q = (A.expenses_q ?? null);
+
+    try{
+      const res = await fetch("/api/calc", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(payload)
+    });
+
+      const raw = await res.text();
+      let text;
+      
+      try{
+        const data = JSON.parse(raw);
+        if(data && data.ok){
+          text = data.text;
+        }else{
+          text = (data && data.error) ? data.error : raw;
+        }
+      }catch{
+        // если сервер вернул не JSON (например, plain text/HTML)
+        text = raw;
+      }
+      
+      output.textContent = text;
+
+    }catch(e){
+      output.textContent = "Ошибка запроса к серверу: " + (e?.message ?? String(e));
+    }finally{
+      spin.style.display = "none";
+    }
+  }
+
+ async function next(){
+    let step = currentStep();
+    while(step && step.when && !step.when()){
+      idx++;
+      step = currentStep();
+    }
+
+    if(step.key === "__finish__"){
+      runCalc();
+      return;
+    }
+
+    const v = getUserInput();
+    const parsed = step.validate ? step.validate(v) : v;
+
+    if(parsed === null){
+  setError(step.error || "Проверь значение.");
+  return;
+}
+
+  if(parsed === SKIP){
+    // сохраняем как "нет данных" и идём дальше
+    applyValue(step, null);
+    if(step.key === "subscriber_total"){
+      A.min_calc_mode = "pop";
+    }
+  
+    // если это финансовый шаг и пользователь поставил "-" → считаем что финансовой базы нет
+    if(step.key === "revenue_q" || step.key === "annual_revenue" || step.key === "expenses_q"){
+      A.revenue_q = null;
+      A.annual_revenue = null;
+      A.expenses_q = null;
+      A.base_type = null; // эквивалент "Нет данных"
+    }
+  
+    history.push(idx);
+
+    idx++;
+    render();
+    return;
+}
+
+    applyValue(step, parsed);
+
+    if(step.key === "inn") {
+      setError("");
+      setHint("Ищу компанию по ИНН…");
+      nextBtn.disabled = true;
+      spin.style.display = "inline-block";
+
+    try{
+    // чтобы не висеть бесконечно — таймаут 5 секунд
+    setHint("Ищу компанию по ИНН…");
+
+    await Promise.race([
+      Promise.all([fetchInnInfo(parsed), fetchLicenses(parsed)]),
+      new Promise((_, reject)=> setTimeout(()=> reject(new Error("timeout")), 5000))
+    ]);
+  }catch(e){
+    // если таймаут/ошибка — просто продолжаем дальше
+    // (название может подгрузиться позже или не найтись)
+  }finally{
+    spin.style.display = "none";
+    nextBtn.disabled = false;
+  }
+}
+
+    
+    history.push(idx);
+    idx++;
+    render();
+    }
+
+
+  backBtn.addEventListener("click", back);
+  nextBtn.addEventListener("click", next);
+  restartBtn.addEventListener("click", restart);
+
+  copyBtn.addEventListener("click", async ()=>{
+    try{
+      await navigator.clipboard.writeText(output.textContent || "");
+      copyBtn.textContent = "Скопировано";
+      setTimeout(()=> copyBtn.textContent = "Скопировать", 900);
+    }catch{
+      const ta = document.createElement("textarea");
+      ta.value = output.textContent || "";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      copyBtn.textContent = "Скопировано";
+      setTimeout(()=> copyBtn.textContent = "Скопировать", 900);
+    }
+  });
+
+  render();
+</script>
+</body>
+</html>
