@@ -686,6 +686,8 @@
       const id = lic.license_id;
       const smiName = lic.smi_name ? String(lic.smi_name) : "—";
       const pop = (lic.population_total != null) ? String(lic.population_total).replace(/\B(?=(\d{3})+(?!\d))/g, " ") : "Не найдено";
+      const mediaRaw = (lic.media_raw && String(lic.media_raw).trim()) ? String(lic.media_raw) : "Не указано";
+      const mediaClass = (lic.media_class && String(lic.media_class).trim()) ? String(lic.media_class) : "Не указано";
       const notes = Array.isArray(lic.population_notes) && lic.population_notes.length
         ? `<div class="licenseMeta">${escapeHtml(lic.population_notes.join("; "))}</div>`
         : "";
@@ -695,7 +697,8 @@
             <div class="licenseInfo">
               <div><strong>${escapeHtml(smiName)}</strong></div>
               <div class="licenseMeta">Лицензия: ${escapeHtml(id)}</div>
-              <div class="licenseMeta">Среда: ${escapeHtml(lic.media_raw || "—")} → ${escapeHtml(lic.media_class || "—")}</div>
+              <div class="licenseMeta">Среда вещания (как указано в лицензии): ${escapeHtml(mediaRaw)}</div>
+              <div class="licenseMeta">Категория среды: ${escapeHtml(mediaClass)}</div>
               <div class="licenseMeta">Численность населения (по данным Роскомнадзора, автоматически): ${escapeHtml(pop)}</div>
               ${notes}
             </div>
