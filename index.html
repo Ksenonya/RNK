@@ -483,12 +483,22 @@
       A.license_ids = A.licenses_all.map(x => x.license_id);
       A.population_by_license = null;
       A.licenses_loading = false;
+      try{
+        if(typeof render === "function" && currentStep().key === "license_ids"){
+          render();
+        }
+      }catch{}
       return true;
     }catch(e){
       A.licenses_all = [];
       A.license_ids = [];
       A.population_by_license = null;
       A.licenses_loading = false;
+      try{
+        if(typeof render === "function" && currentStep().key === "license_ids"){
+          render();
+        }
+      }catch{}
       setHint("Ошибка запроса /api/licenses");
       return false;
     }
@@ -513,6 +523,10 @@
         renderLicenseSelection();
         updateSummary();
       });
+      return;
+    }
+    if(items.length === 0 && A.licenses_loading){
+      setInputHtml(`<div class="muted">Ищу лицензии…</div>`);
       return;
     }
     if(items.length === 0){
