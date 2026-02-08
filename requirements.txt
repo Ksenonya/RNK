@@ -1,4 +1,9 @@
 fastapi
 uvicorn
+pydantic
 pandas
 openpyxl
+numpy
+python-dateutil
+et-xmlfile
+six
