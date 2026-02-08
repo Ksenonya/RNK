@@ -46,12 +46,18 @@ RAO_DIR = Path(rao_mod.__file__).resolve().parent
 
 def find_rkn_xlsx() -> Path:
     candidates = [
+        BASE_DIR / "Таблица РКН slim.xlsx",
         BASE_DIR / "Таблица РКН.xlsx",
         BASE_DIR / "Таблица РКН (2).xlsx",
+        BASE_DIR / "Таблица РКН очищенная.xlsx",
         RAO_DIR / "Таблица РКН.xlsx",
         RAO_DIR / "Таблица РКН (2).xlsx",
+        RAO_DIR / "Таблица РКН slim.xlsx",
+        RAO_DIR / "Таблица РКН очищенная.xlsx",
         Path.cwd() / "Таблица РКН.xlsx",
         Path.cwd() / "Таблица РКН (2).xlsx",
+        Path.cwd() / "Таблица РКН slim.xlsx",
+        Path.cwd() / "Таблица РКН очищенная.xlsx",
     ]
     for p in candidates:
         if p.exists():

@@ -1039,9 +1039,15 @@ def main(argv=None) -> int:
         vars_xlsx = base_dir / vars_xlsx
 
     if not rkn_xlsx.exists():
-        alt = rkn_xlsx.with_name("Таблица РКН (2).xlsx")
-        if alt.exists():
-            rkn_xlsx = alt
+        for name in (
+            "Таблица РКН slim.xlsx",
+            "Таблица РКН очищенная.xlsx",
+            "Таблица РКН (2).xlsx",
+        ):
+            alt = rkn_xlsx.with_name(name)
+            if alt.exists():
+                rkn_xlsx = alt
+                break
 
     if not rkn_xlsx.exists():
         print(f"Ошибка: не найден файл РКН: {rkn_xlsx}")
