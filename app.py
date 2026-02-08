@@ -3,6 +3,7 @@ from typing import Any, List, Optional, Literal
 import importlib.util
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
@@ -73,6 +74,17 @@ def find_vars_xlsx() -> Path:
     )
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://ksenonya.github.io",
+        "https://rnk-wof7.onrender.com",
+        "http://localhost",
+        "http://127.0.0.1:8000",
+    ],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 INN_MAP: dict[str, str] = {}
 
