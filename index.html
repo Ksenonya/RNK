@@ -240,6 +240,9 @@
   const output = document.getElementById("output");
   const spin = document.getElementById("spin");
   const SKIP = "__SKIP__";
+  const API_BASE = location.origin.includes("onrender.com")
+    ? location.origin
+    : "https://rnk-wof7.onrender.com";
   const POP_OPTIONS = [
     { label: "менее 19 999", value: 1 },
     { label: "20 000 – 49 999", value: 20000 },
@@ -385,7 +388,7 @@
 
   async function fetchInnInfo(inn){
   try{
-    const res = await fetch(`/api/inninfo?inn=${encodeURIComponent(inn)}`);
+    const res = await fetch(`${API_BASE}/api/inninfo?inn=${encodeURIComponent(inn)}`);
 
     if(!res.ok){
     A.org_name = "";
@@ -422,7 +425,7 @@
 
   async function fetchLicenses(inn){
     try{
-      const res = await fetch(`/api/licenses?inn=${encodeURIComponent(inn)}`);
+      const res = await fetch(`${API_BASE}/api/licenses?inn=${encodeURIComponent(inn)}`);
       if(!res.ok){
         A.licenses_all = [];
         A.license_ids = [];
@@ -1052,7 +1055,7 @@
     if(A.base_type === "expenses_q") payload.expenses_q = (A.expenses_q ?? null);
 
     try{
-      const res = await fetch("/api/calc", {
+      const res = await fetch(`${API_BASE}/api/calc`, {
       method: "POST",
       headers: {"Content-Type":"application/json"},
       body: JSON.stringify(payload)
