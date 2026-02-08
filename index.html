@@ -142,9 +142,23 @@
       border-radius:12px;
       border:1px solid var(--line);
       background: rgba(0,0,0,.18);
+      flex-wrap:wrap;
     }
     .loadingText{ font-size:13px; color: var(--text); }
     .loadingPercent{ font-size:12px; color: var(--muted); margin-left:auto; }
+    .loadingBar{
+      width:100%;
+      height:6px;
+      background: rgba(255,255,255,.12);
+      border-radius:999px;
+      overflow:hidden;
+    }
+    .loadingFill{
+      height:100%;
+      width:0%;
+      background: linear-gradient(90deg, #4cc9f0, #54e6d7);
+      transition: width .3s ease;
+    }
     @keyframes spin{ to{ transform: rotate(360deg);} }
     .muted{ color: var(--muted); font-size: 13px; }
     
@@ -169,7 +183,7 @@
         <h1>РАО </h1>
         <p>Расчёт ставок теле- и радиовещателей</b></p>
       </div>
-      <div class="pill">API: /api/calc</div>
+      <div class="pill">Интерфейс: /api/calc</div>
     </div>
 
     <div class="grid">
@@ -193,8 +207,11 @@
           <div class="muted" id="hintBox" style="margin-top:10px; display:none;"></div>
           <div class="loadingBox" id="loadingBox">
             <div class="spinner" id="loadingSpin" style="display:inline-block;"></div>
-            <div class="loadingText" id="loadingText">Идёт обработка…</div>
+            <div class="loadingText" id="loadingText">Выполняется обработка…</div>
             <div class="loadingPercent" id="loadingPercent">0%</div>
+            <div class="loadingBar">
+              <div class="loadingFill" id="loadingFill"></div>
+            </div>
           </div>
 
 
@@ -211,7 +228,7 @@
           <div class="head">
             <div class="row2">
               <div class="pill">Введённые данные</div>
-              <div class="muted">Заполняйте шаги слева</div>
+              <div class="muted">Пожалуйста, заполняйте шаги слева.</div>
             </div>
           </div>
           <div class="body">
@@ -230,7 +247,7 @@
             </div>
           </div>
           <div class="body">
-            <pre id="output">Результат появится здесь после расчёта.</pre>
+            <pre id="output">Результат появится здесь после завершения расчёта.</pre>
           </div>
         </div>
       </div>
@@ -263,20 +280,21 @@
   const loadingText = document.getElementById("loadingText");
   const loadingPercent = document.getElementById("loadingPercent");
   const loadingSpin = document.getElementById("loadingSpin");
+  const loadingFill = document.getElementById("loadingFill");
   const SKIP = "__SKIP__";
   const API_PRIMARY = "https://rnk-wof7.onrender.com";
   const API_FALLBACK = location.origin;
   const API_BASE = location.origin.includes("onrender.com") ? API_FALLBACK : API_PRIMARY;
   const POP_OPTIONS = [
-    { label: "менее 19 999", value: 1 },
-    { label: "20 000 – 49 999", value: 20000 },
-    { label: "50 000 – 149 999", value: 50000 },
-    { label: "150 000 – 299 999", value: 150000 },
-    { label: "300 000 – 599 999", value: 300000 },
-    { label: "600 000 – 999 999", value: 600000 },
-    { label: "1 000 000 – 1 999 999", value: 1000000 },
-    { label: "2 000 000 – 3 999 999", value: 2000000 },
-    { label: "более 4 000 000", value: 4000001 }
+    { label: "менее 19 999 человек", value: 1 },
+    { label: "20 000 – 49 999 человек", value: 20000 },
+    { label: "50 000 – 149 999 человек", value: 50000 },
+    { label: "150 000 – 299 999 человек", value: 150000 },
+    { label: "300 000 – 599 999 человек", value: 300000 },
+    { label: "600 000 – 999 999 человек", value: 600000 },
+    { label: "1 000 000 – 1 999 999 человек", value: 1000000 },
+    { label: "2 000 000 – 3 999 999 человек", value: 2000000 },
+    { label: "более 4 000 000 человек", value: 4000001 }
   ];
 
   let loadingTimer = null;
@@ -287,6 +305,7 @@
     if(!loadingBox) return;
     const v = Math.max(0, Math.min(100, loadingValue));
     if(loadingPercent) loadingPercent.textContent = `${Math.round(v)}%`;
+    if(loadingFill) loadingFill.style.width = `${Math.round(v)}%`;
   }
 
   function startLoading(label, forceLabel){
@@ -406,7 +425,7 @@
   }
 
   function populationOptionsHtml(selected){
-    const opts = [`<option value="">Выберите…</option>`];
+    const opts = [`<option value="">Выберите значение…</option>`];
     for(const o of POP_OPTIONS){
       const sel = (Number(selected) === Number(o.value)) ? "selected" : "";
       opts.push(`<option value="${o.value}" ${sel}>${escapeHtml(o.label)}</option>`);
@@ -464,7 +483,7 @@
 
   async function fetchInnInfo(inn, opts){
     const useLoading = !(opts && opts.loading === false);
-    if(useLoading) startLoading("Ищу компанию по ИНН…");
+    if(useLoading) startLoading("Выполняется поиск организации по ИНН…");
     try{
       const res = await apiFetch(`${API_BASE}/api/inninfo?inn=${encodeURIComponent(inn)}`);
       if(!res && API_BASE !== API_FALLBACK){
@@ -472,14 +491,14 @@
         if(res2) return await (async()=>{ return await fetchInnInfoWithRes(inn, res2); })();
       }
       if(!res){
-        setHint("Ошибка сети /api/inninfo");
+        setHint("Ошибка сети при обращении к /api/inninfo.");
         return false;
       }
       return await fetchInnInfoWithRes(inn, res);
     }catch(e){
       A.org_name = "";
       updateSummary();
-      setHint("Ошибка запроса /api/inninfo");
+      setHint("Ошибка запроса к /api/inninfo.");
       return false;
     }finally{
       if(useLoading) stopLoading();
@@ -492,13 +511,13 @@
     A.org_name = "";
     updateSummary();
   
-    let msg = "По ИНН не найдено";
+    let msg = "Организация по указанному ИНН не найдена.";
     if(res.status !== 404){
       try{
         const data = await res.json();
-        msg = "Ошибка /api/inninfo: " + (data.error || res.status);
+        msg = "Ошибка при обращении к /api/inninfo: " + (data.error || res.status);
       }catch{
-        msg = "Ошибка /api/inninfo: " + res.status;
+        msg = "Ошибка при обращении к /api/inninfo: " + res.status;
       }
     }
   
@@ -509,13 +528,13 @@
     const data = await res.json();
     A.org_name = (data && data.ok && data.org_name) ? data.org_name : "";
     updateSummary();
-    setHint(A.org_name ? `Найдено: ${A.org_name}` : "По ИНН не найдено");
+    setHint(A.org_name ? `Организация найдена: ${A.org_name}` : "Организация по указанному ИНН не найдена.");
     return !!A.org_name;
 }
 
   async function fetchLicenses(inn, opts){
     const useLoading = !(opts && opts.loading === false);
-    if(useLoading) startLoading("Ищу лицензии…");
+    if(useLoading) startLoading("Выполняется поиск лицензий. Это может занять несколько минут.", true);
     try{
       A.licenses_loading = true;
       A.licenses_error = null;
@@ -528,7 +547,7 @@
         A.license_ids = [];
         A.population_by_license = null;
         A.licenses_loading = false;
-        A.licenses_error = "Ошибка сети /api/licenses";
+        A.licenses_error = "Ошибка сети при обращении к /api/licenses.";
         setHint(A.licenses_error);
         return false;
       }
@@ -537,7 +556,7 @@
         A.license_ids = [];
         A.population_by_license = null;
         A.licenses_loading = false;
-        let msg = `Ошибка /api/licenses: ${res.status}`;
+        let msg = `Ошибка при обращении к /api/licenses: ${res.status}`;
         try{
           const data = await res.json();
           if(data && data.error) msg = data.error;
@@ -552,7 +571,7 @@
         A.license_ids = [];
         A.population_by_license = null;
         A.licenses_loading = false;
-        A.licenses_error = "Лицензии не найдены (ответ API).";
+        A.licenses_error = "Лицензии не найдены (ответ сервиса).";
         setHint(A.licenses_error);
         return false;
       }
@@ -572,7 +591,7 @@
       A.license_ids = [];
       A.population_by_license = null;
       A.licenses_loading = false;
-      A.licenses_error = "Ошибка запроса /api/licenses";
+      A.licenses_error = "Ошибка запроса к /api/licenses.";
       try{
         if(typeof render === "function" && currentStep().key === "license_ids"){
           render();
@@ -587,18 +606,19 @@
 
 
   function mediaLabel(code){
-    if(code === "auto") return "Авто (как в лицензиях)";
-    if(code === "air") return "В эфире";
-    if(code === "cable") return "По кабелю";
-    if(code === "both") return "Одновременно в эфире и по кабелю";
-    return "Авто (как в лицензиях)";
+    if(code === "auto") return "Автоматически (как указано в лицензиях)";
+    if(code === "air") return "Эфирное вещание";
+    if(code === "cable") return "Кабельное вещание";
+    if(code === "both") return "Одновременно эфирное и кабельное вещание";
+    return "Автоматически (как указано в лицензиях)";
   }
 
   function renderLicenseSelection(){
     const items = Array.isArray(A.licenses_all) ? A.licenses_all : [];
     if(items.length === 0 && A.inn && !A.licenses_loading){
       A.licenses_loading = true;
-      setInputHtml(`<div class="muted">Ищу лицензии. Это займет несколько минут.</div>`);
+      A.licenses_error = null;
+      setInputHtml(`<div class="muted">Выполняется поиск лицензий. Это может занять несколько минут.</div>`);
       fetchLicenses(A.inn).finally(()=>{
         A.licenses_loading = false;
         renderLicenseSelection();
@@ -607,7 +627,7 @@
       return;
     }
     if(items.length === 0 && A.licenses_loading){
-      setInputHtml(`<div class="muted">Ищу лицензии. Это займет несколько минут.</div>`);
+      setInputHtml(`<div class="muted">Выполняется поиск лицензий. Это может занять несколько минут.</div>`);
       return;
     }
     if(items.length === 0 && A.licenses_error){
@@ -615,7 +635,7 @@
       return;
     }
     if(items.length === 0){
-      setInputHtml(`<div class="muted">Лицензии по этому ИНН не найдены. Проверьте ИНН или таблицу РКН.</div>`);
+      setInputHtml(`<div class="muted">Лицензии по указанному ИНН не найдены. Проверьте ИНН или таблицу Роскомнадзора (РКН).</div>`);
       return;
     }
 
@@ -628,7 +648,7 @@
     const rows = items.map(lic => {
       const id = lic.license_id;
       const smiName = lic.smi_name ? String(lic.smi_name) : "—";
-      const pop = (lic.population_total != null) ? String(lic.population_total).replace(/\B(?=(\d{3})+(?!\d))/g, " ") : "не найдено";
+      const pop = (lic.population_total != null) ? String(lic.population_total).replace(/\B(?=(\d{3})+(?!\d))/g, " ") : "Не найдено";
       const notes = Array.isArray(lic.population_notes) && lic.population_notes.length
         ? `<div class="licenseMeta">${escapeHtml(lic.population_notes.join("; "))}</div>`
         : "";
@@ -639,7 +659,7 @@
               <div><strong>${escapeHtml(smiName)}</strong></div>
               <div class="licenseMeta">Лицензия: ${escapeHtml(id)}</div>
               <div class="licenseMeta">Среда: ${escapeHtml(lic.media_raw || "—")} → ${escapeHtml(lic.media_class || "—")}</div>
-              <div class="licenseMeta">Население (РКН/авто): ${escapeHtml(pop)}</div>
+              <div class="licenseMeta">Численность населения (по данным Роскомнадзора, автоматически): ${escapeHtml(pop)}</div>
               ${notes}
             </div>
             <input class="licenseCheck" type="checkbox" data-lic-id="${escapeHtml(id)}" ${selected.has(id) ? "checked" : ""}/>
@@ -698,13 +718,13 @@
       const id = lic.license_id;
       const smiName = lic.smi_name ? String(lic.smi_name) : "—";
       const isSelected = selectedSet.has(id);
-      const autoPop = lic.population_total != null ? String(lic.population_total).replace(/\B(?=(\d{3})+(?!\d))/g, " ") : "не найдено";
+      const autoPop = lic.population_total != null ? String(lic.population_total).replace(/\B(?=(\d{3})+(?!\d))/g, " ") : "Не найдено";
       const current = A.population_by_license ? A.population_by_license[id] : null;
       return `
         <div class="licenseItem">
           <div><strong>${escapeHtml(smiName)}</strong></div>
           <div class="licenseMeta">Лицензия: ${escapeHtml(id)}</div>
-          <div class="licenseMeta">Авто по РКН: ${escapeHtml(autoPop)}</div>
+          <div class="licenseMeta">Численность населения (по данным Роскомнадзора, автоматически): ${escapeHtml(autoPop)}</div>
           <div class="licenseMeta">${isSelected ? "Участвует в расчёте" : "Не участвует в расчёте"}</div>
           <div class="licenseControls">
             <select class="licenseSelect" data-lic-id="${escapeHtml(id)}" ${isSelected ? "" : "disabled"}>
@@ -742,7 +762,7 @@
       const lic = byId[id] || {};
       const smiName = lic.smi_name ? String(lic.smi_name) : "—";
       const autoPopRaw = (lic.population_total != null) ? String(lic.population_total) : "";
-      const autoPop = autoPopRaw ? autoPopRaw.replace(/\B(?=(\d{3})+(?!\d))/g, " ") : "не найдено";
+      const autoPop = autoPopRaw ? autoPopRaw.replace(/\B(?=(\d{3})+(?!\d))/g, " ") : "Не найдено";
       const current = (A.population_by_license && A.population_by_license[id] != null)
         ? A.population_by_license[id]
         : (lic.population_total != null ? lic.population_total : "");
@@ -750,9 +770,9 @@
         <div class="licenseItem">
           <div><strong>${escapeHtml(smiName)}</strong></div>
           <div class="licenseMeta">Лицензия: ${escapeHtml(id)}</div>
-          <div class="licenseMeta">Авто по РКН: ${escapeHtml(autoPop)}</div>
+          <div class="licenseMeta">Численность населения (по данным Роскомнадзора, автоматически): ${escapeHtml(autoPop)}</div>
           <div class="licenseControls">
-            <input type="text" class="licenseSelect" data-pop-lic-id="${escapeHtml(id)}" placeholder="например 987000" value="${escapeHtml(String(current))}"/>
+            <input type="text" class="licenseSelect" data-pop-lic-id="${escapeHtml(id)}" placeholder="Например, 987000" value="${escapeHtml(String(current))}"/>
           </div>
         </div>
       `;
@@ -774,7 +794,7 @@
   function updateSummary(){
     const done = A._doneSteps || {};
     const baseLabel =
-      (A.base_type === "annual_revenue") ? "Годовая выручка/доход" :
+      (A.base_type === "annual_revenue") ? "Годовая выручка или доход" :
       (A.base_type === "revenue_q") ? "Доходы за квартал" :
       (A.base_type === "expenses_q") ? "Расходы за квартал" :
       "Финансовая база";
@@ -783,21 +803,21 @@
       (A.base_type === "revenue_q") ? A.revenue_q :
       (A.base_type === "annual_revenue") ? A.annual_revenue :
       (A.base_type === "expenses_q") ? A.expenses_q :
-      "не указана";
+      "Не указано";
 
     const licenseIds = Array.isArray(A.license_ids) ? A.license_ids : [];
-    const licenseSummary = licenseIds.length ? `${licenseIds.length}: ${licenseIds.join(", ")}` : undefined;
+    const licenseSummary = licenseIds.length ? `Количество: ${licenseIds.length}. ${licenseIds.join(", ")}` : undefined;
 
     const popModeLabel =
       (A.min_calc_mode === "subs") ? "По абонентам" :
       (A.population_mode === "manual") ? "Ручной по лицензиям" :
-      (A.population_mode === "auto") ? "Авто (РКН)" :
+      (A.population_mode === "auto") ? "Автоматически (по данным Роскомнадзора)" :
       undefined;
 
     let popByLicText;
     if((A.population_mode === "manual" || A.population_mode === "auto") && A.population_by_license){
       const parts = Object.entries(A.population_by_license)
-        .map(([k,v]) => `${k}=${populationLabelByValue(v)}`)
+        .map(([k,v]) => `${k}: ${populationLabelByValue(v)}`)
         .join("; ");
       popByLicText = parts || undefined;
     }
@@ -806,13 +826,12 @@
       ["ИНН", A.inn],
       ["Наименование", A.org_name],
       [done.base_type ? baseLabel : undefined, done.base_type ? baseValue : undefined],
-      ["Лицензии (выбрано)", done.license_ids ? licenseSummary : undefined],
-      ["Интернет-ресурсы", done.internet_resources ? A.internet_resources : undefined],
+      ["Выбранные лицензии", done.license_ids ? licenseSummary : undefined],
+      ["Количество интернет-ресурсов", done.internet_resources ? A.internet_resources : undefined],
       ["Среда договора", done.contract_media ? mediaLabel(A.contract_media ?? "auto") : undefined],
       ["Член отраслевой ассоциации", done.assoc_member ? (A.assoc_member===true ? "Да" : (A.assoc_member===false ? "Нет" : undefined)) : undefined],
-      ["Минималка (режим)", done.min_calc_mode ? popModeLabel : undefined],
-      ["Население по лицензиям", (done.population_by_license || done.population_confirm) ? popByLicText : undefined],
-      ["Абоненты (суммарно)", done.subscriber_total ? A.subscriber_total : undefined],
+      ["Численность населения по лицензиям", (done.population_by_license || done.population_confirm) ? popByLicText : undefined],
+      ["Количество абонентов (суммарно)", done.subscriber_total ? A.subscriber_total : undefined],
                 ];
 
     const rows = items
@@ -824,38 +843,38 @@
         </div>
       `).join("");
 
-    summary.innerHTML = rows || `<div style="opacity:.7;">Заполняйте шаги слева</div>`;
+    summary.innerHTML = rows || `<div style="opacity:.7;">Пожалуйста, заполняйте шаги слева.</div>`;
   }
 
   const steps = [
     {
       key:"inn",
       title:"ИНН организации",
-      text:"Введите ИНН (10 или 12 цифр, без пробелов).",
-      render: ()=> setInputText({label:"ИНН", placeholder:"например 0326499787"}),
+      text:"Введите ИНН (10 или 12 цифр без пробелов).",
+      render: ()=> setInputText({label:"ИНН", placeholder:"Например, 0326499787"}),
       validate: (v)=> (/^\d{10}$|^\d{12}$/.test(v.trim()) ? v.trim() : null),
       error: "ИНН должен состоять из 10 или 12 цифр."
     },
     {
       key:"base_type",
       title:"Финансовая база",
-      text:"Что есть у пользователя для расчёта процента?",
+      text:"Какая финансовая база доступна для расчёта процента?",
       render: ()=> setInputSelect({
-        label:"Выберите базу",
+        label:"Выберите финансовую базу",
         choices:[
           "Доходы за квартал",
-          "Годовая выручка/доход",
+          "Годовая выручка или доход",
           "Расходы за квартал (если нет доходов)",
           "Нет данных"
         ],
         value: (A.base_type === "revenue_q") ? "Доходы за квартал"
-             : (A.base_type === "annual_revenue") ? "Годовая выручка/доход"
+             : (A.base_type === "annual_revenue") ? "Годовая выручка или доход"
              : (A.base_type === "expenses_q") ? "Расходы за квартал (если нет доходов)"
              : "Нет данных"
       }),
       validate: (v)=>{
         if(v === "Доходы за квартал") return "revenue_q";
-        if(v === "Годовая выручка/доход") return "annual_revenue";
+        if(v === "Годовая выручка или доход") return "annual_revenue";
         if(v === "Расходы за квартал (если нет доходов)") return "expenses_q";
         if(v === "Нет данных") return SKIP;
         return null;
@@ -865,9 +884,9 @@
     {
     key:"revenue_q",
     title:"Доходы за квартал",
-    text:"Введите доходы за квартал. Если данных нет — нажмите «Далее».",
+    text:"Введите доходы за квартал. Если данных нет, нажмите «Далее».",
     when: ()=> A.base_type === "revenue_q",
-    render: ()=> setInputText({label:"Доход за квартал", placeholder:"например 1250000 или -"}),
+    render: ()=> setInputText({label:"Доходы за квартал", placeholder:"Например, 1250000 или -"}),
     validate: (v)=>{
       if (isEmptyOrDash(v)) return SKIP;
       const n = parseFloatMaybe(v);
@@ -879,9 +898,9 @@
     {
     key:"annual_revenue",
     title:"Годовая выручка",
-    text:"Введите сумму годовой выручки/дохода. Если данных нет — нажмите «Далее».",
+    text:"Введите сумму годовой выручки или дохода. Если данных нет, нажмите «Далее».",
     when: ()=> A.base_type === "annual_revenue",
-    render: ()=> setInputText({label:"Годовая выручка", placeholder:"например 5000000 или -"}),
+    render: ()=> setInputText({label:"Годовая выручка или доход", placeholder:"Например, 5000000 или -"}),
     validate: (v)=>{
       if (isEmptyOrDash(v)) return SKIP;
       const n = parseFloatMaybe(v);
@@ -893,9 +912,9 @@
     {
     key:"expenses_q",
     title:"Расходы за квартал",
-    text:"Введите расходы за квартал (число ≥ 0). Если данных нет — поставьте «-».",
+    text:"Введите расходы за квартал (число ≥ 0). Если данных нет, поставьте «-».",
     when: ()=> A.base_type === "expenses_q",
-    render: ()=> setInputText({label:"Расходы за квартал", placeholder:"например 900000 или -"}),
+    render: ()=> setInputText({label:"Расходы за квартал", placeholder:"Например, 900000 или -"}),
     validate: (v)=>{
       if (isEmptyOrDash(v)) return SKIP;
       const n = parseFloatMaybe(v);
@@ -908,8 +927,8 @@
     {
       key:"internet_resources",
       title:"Интернет-ресурсы",
-      text:"Сколько интернет-ресурсов?",
-      render: ()=> setInputText({label:"Интернет-ресурсы", placeholder:"0", value: (A.internet_resources ?? 0)}),
+      text:"Укажите количество интернет-ресурсов.",
+      render: ()=> setInputText({label:"Количество интернет-ресурсов", placeholder:"0", value: (A.internet_resources ?? 0)}),
       validate: (v)=>{
         const n = parseIntMaybe(v);
         if(!Number.isInteger(n) || n < 0 || n > 1000) return null;
@@ -924,18 +943,18 @@
       render: ()=> setInputSelect({
         label:"Среда договора",
         choices:[
-          "Авто (как в лицензиях)",
-          "В эфире",
-          "По кабелю",
-          "Одновременно в эфире и по кабелю"
+          "Автоматически (как указано в лицензиях)",
+          "Эфирное вещание",
+          "Кабельное вещание",
+          "Одновременно эфирное и кабельное вещание"
         ],
         value: mediaLabel(A.contract_media ?? "auto")
       }),
       validate: (v)=>{
-        if(v === "Авто (как в лицензиях)") return "auto";
-        if(v === "В эфире") return "air";
-        if(v === "По кабелю") return "cable";
-        if(v === "Одновременно в эфире и по кабелю") return "both";
+        if(v === "Автоматически (как указано в лицензиях)") return "auto";
+        if(v === "Эфирное вещание") return "air";
+        if(v === "Кабельное вещание") return "cable";
+        if(v === "Одновременно эфирное и кабельное вещание") return "both";
         return null;
       },
       error:"Выберите один из вариантов."
@@ -947,7 +966,11 @@
       render: ()=> {
         renderLicenseSelection();
         const count = Array.isArray(A.licenses_all) ? A.licenses_all.length : 0;
-        setHint(count ? `Найдено лицензий: ${count}.` : "Лицензии не найдены.");
+        if(A.licenses_loading){
+          setHint("Выполняется поиск лицензий. Это может занять несколько минут.");
+        }else{
+          setHint(count ? `Найдено лицензий: ${count}.` : "Лицензии не найдены.");
+        }
       },
       validate: ()=>{
         const ids = getSelectedLicenseIdsFromDOM();
@@ -959,9 +982,9 @@
     {
   key:"min_calc_mode",
   title:"Минимальная сумма",
-  text:"Производить расчёт по количеству абонентов или по населению?",
+  text:"Выполнять расчёт минимальной суммы по количеству абонентов или по численности населения?",
   render: ()=> setInputSelect({
-    label:"Выберите вариант",
+    label:"Выберите способ расчёта",
     choices:[
       "По количеству абонентов",
       "По населению"
@@ -981,9 +1004,9 @@
 {
   key:"subscriber_total",
   title:"Количество абонентов",
-  text:"Введите суммарное количество абонентов всех операторов, распространяющих телеканал. Если не нужно — нажмите «Далее» и выберите расчёт по населению.",
+  text:"Введите суммарное количество абонентов всех операторов, распространяющих телеканал. Если значение не требуется, нажмите «Далее» и выберите расчёт по численности населения.",
   when: ()=> A.min_calc_mode === "subs",
-  render: ()=> setInputText({label:"Суммарное количество абонентов", placeholder:"например 25000"}),
+  render: ()=> setInputText({label:"Суммарное количество абонентов", placeholder:"Например, 25000"}),
   validate: (v)=>{
     if(isEmptyOrDash(v)) return SKIP; // чтобы можно было быстро уйти на «по населению»
     const n = parseIntMaybe(v);
@@ -995,17 +1018,17 @@
 
 {
   key:"population_mode",
-  title:"Население",
-  text:"Как рассчитать население для минимальной суммы?",
+  title:"Численность населения",
+  text:"Выберите способ определения численности населения для расчёта минимальной суммы.",
   when: ()=> A.min_calc_mode === "pop",
   render: ()=> {
     setInputSelect({
-      label:"Режим",
+      label:"Способ расчёта",
       choices:[
-        "Автоматически по РКН (с подтверждением)",
+        "Автоматически по данным Роскомнадзора (с подтверждением)",
         "Рассчитать вручную"
       ],
-      value: (A.population_mode === "manual") ? "Рассчитать вручную" : "Автоматически по РКН (с подтверждением)"
+      value: (A.population_mode === "manual") ? "Рассчитать вручную" : "Автоматически по данным Роскомнадзора (с подтверждением)"
     });
     const selected = Array.isArray(A.license_ids) ? A.license_ids : [];
     const items = Array.isArray(A.licenses_all) ? A.licenses_all : [];
@@ -1013,13 +1036,13 @@
     items.forEach(x => { byId[x.license_id] = x; });
     const missing = selected.filter(id => !byId[id] || byId[id].population_total == null);
     if(missing.length){
-      setHint(`По лицензиям без населения: ${missing.join(", ")}. Можно выбрать вручную.`);
+      setHint(`По лицензиям без численности населения: ${missing.join(", ")}. Вы можете выбрать вручную.`);
     }else{
-      setHint("Население берётся из РКН и автоматически нормализуется, затем нужно подтвердить.");
+      setHint("Численность населения берется из данных Роскомнадзора и автоматически нормализуется. Затем требуется подтверждение.");
     }
   },
   validate: (v)=>{
-    if(v === "Автоматически по РКН (с подтверждением)") return "auto";
+    if(v === "Автоматически по данным Роскомнадзора (с подтверждением)") return "auto";
     if(v === "Рассчитать вручную") return "manual";
     return null;
   },
@@ -1028,12 +1051,12 @@
 
 {
   key:"population_confirm",
-  title:"Подтверждение населения",
-  text:"Проверьте население для каждой выбранной лицензии. Верный формат только числовой, например 987000.",
+  title:"Подтверждение численности населения",
+  text:"Проверьте численность населения для каждой выбранной лицензии. Допустим только числовой формат. Например, 987000.",
   when: ()=> A.min_calc_mode === "pop" && A.population_mode === "auto",
   render: ()=> {
     renderPopulationConfirm();
-    setHint("Верный формат только числовой, например 987000.");
+    setHint("Допустим только числовой формат. Например, 987000.");
   },
   validate: ()=>{
     const selected = Array.isArray(A.license_ids) ? A.license_ids : [];
@@ -1044,13 +1067,13 @@
     }
     return map;
   },
-  error:"Введите население числом для каждой выбранной лицензии."
+  error:"Введите численность населения числом для каждой выбранной лицензии."
 },
 
 {
   key:"population_by_license",
-  title:"Население по лицензиям",
-  text:"Для каждой выбранной лицензии выберите категорию населения.",
+  title:"Численность населения по лицензиям",
+  text:"Для каждой выбранной лицензии выберите категорию численности населения.",
   when: ()=> A.min_calc_mode === "pop" && A.population_mode === "manual",
   render: ()=> renderPopulationByLicense(),
   validate: ()=>{
@@ -1062,15 +1085,15 @@
     }
     return map;
   },
-  error:"Выберите население для каждой отмеченной лицензии."
+  error:"Выберите численность населения для каждой отмеченной лицензии."
 },
 
     {
       key:"assoc_member",
-      title:"Член отраслевой ассоциации?",
-      text:"Является ли пользователь членом отраслевой ассоциации?",
+      title:"Членство в отраслевой ассоциации",
+      text:"Является ли организация членом отраслевой ассоциации?",
       render: ()=> setInputSelect({
-        label:"Член ассоциации?",
+        label:"Членство в ассоциации",
         choices:["Нет","Да"],
         value:(A.assoc_member === true ? "Да" : "Нет")
       }),
@@ -1080,7 +1103,7 @@
     {
     key:"__finish__",
     title:"Готово к расчёту",
-    text:"Нажми «Рассчитать», чтобы выполнить расчёт и показать результат.",
+    text:"Нажмите «Рассчитать», чтобы выполнить расчёт и получить результат.",
     render: ()=> { inputBox.innerHTML = ""; },
     validate: ()=> "__finish__"
     },
@@ -1180,13 +1203,13 @@
     for(const k of Object.keys(A)) delete A[k];
     idx = 0;
     history.length = 0;
-    output.textContent = "Результат появится здесь после расчёта.";
+    output.textContent = "Результат появится здесь после завершения расчёта.";
     render();
   }
 
   async function runCalc(){
     output.textContent = "";
-    startLoading("Идёт расчёт…", true);
+    startLoading("Выполняется расчёт…", true);
     spin.style.display = "inline-block";
 
     const payload = {
@@ -1231,7 +1254,7 @@
       }
 
       if(!res){
-        output.textContent = "Ошибка сети /api/calc";
+        output.textContent = "Ошибка сети при обращении к /api/calc.";
         return;
       }
 
@@ -1306,13 +1329,13 @@
 
     if(step.key === "inn") {
       setError("");
-      setHint("Ищу компанию по ИНН…");
+      setHint("Выполняется поиск организации по ИНН…");
       nextBtn.disabled = true;
-      startLoading("Ищу компанию и лицензии…", true);
+      startLoading("Выполняется поиск организации и лицензий…", true);
 
     try{
     // чтобы не висеть бесконечно — таймаут 5 секунд
-    setHint("Ищу компанию по ИНН…");
+    setHint("Выполняется поиск организации по ИНН…");
 
     await Promise.race([
       Promise.all([fetchInnInfo(parsed, {loading:false}), fetchLicenses(parsed, {loading:false})]),
