@@ -618,29 +618,51 @@
     if(items.length === 0 && A.inn && !A.licenses_loading){
       A.licenses_loading = true;
       A.licenses_error = null;
-      startLoading("Выполняется поиск лицензий. Это может занять несколько минут.", true);
+      if(!A._licenses_loading_ui){
+        A._licenses_loading_ui = true;
+        startLoading("Выполняется поиск лицензий. Это может занять несколько минут.", true);
+      }
       setInputHtml("");
       setHint("");
       fetchLicenses(A.inn, {loading:false}).finally(()=>{
         A.licenses_loading = false;
+        if(A._licenses_loading_ui){
+          A._licenses_loading_ui = false;
+          stopLoading();
+        }
         renderLicenseSelection();
         updateSummary();
       });
       return;
     }
     if(items.length === 0 && A.licenses_loading){
-      startLoading("Выполняется поиск лицензий. Это может занять несколько минут.", true);
+      if(!A._licenses_loading_ui){
+        A._licenses_loading_ui = true;
+        startLoading("Выполняется поиск лицензий. Это может занять несколько минут.", true);
+      }
       setInputHtml("");
       setHint("");
       return;
     }
     if(items.length === 0 && A.licenses_error){
+      if(A._licenses_loading_ui){
+        A._licenses_loading_ui = false;
+        stopLoading();
+      }
       setInputHtml(`<div class="muted">${escapeHtml(A.licenses_error)}</div>`);
       return;
     }
     if(items.length === 0){
+      if(A._licenses_loading_ui){
+        A._licenses_loading_ui = false;
+        stopLoading();
+      }
       setInputHtml(`<div class="muted">Лицензии по указанному ИНН не найдены. Проверьте ИНН или таблицу Роскомнадзора (РКН).</div>`);
       return;
+    }
+    if(A._licenses_loading_ui){
+      A._licenses_loading_ui = false;
+      stopLoading();
     }
 
     const selectedList = Array.isArray(A.license_ids)
