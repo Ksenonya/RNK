@@ -618,8 +618,10 @@
     if(items.length === 0 && A.inn && !A.licenses_loading){
       A.licenses_loading = true;
       A.licenses_error = null;
-      setInputHtml(`<div class="muted">Выполняется поиск лицензий. Это может занять несколько минут.</div>`);
-      fetchLicenses(A.inn).finally(()=>{
+      startLoading("Выполняется поиск лицензий. Это может занять несколько минут.", true);
+      setInputHtml("");
+      setHint("");
+      fetchLicenses(A.inn, {loading:false}).finally(()=>{
         A.licenses_loading = false;
         renderLicenseSelection();
         updateSummary();
@@ -627,7 +629,9 @@
       return;
     }
     if(items.length === 0 && A.licenses_loading){
-      setInputHtml(`<div class="muted">Выполняется поиск лицензий. Это может занять несколько минут.</div>`);
+      startLoading("Выполняется поиск лицензий. Это может занять несколько минут.", true);
+      setInputHtml("");
+      setHint("");
       return;
     }
     if(items.length === 0 && A.licenses_error){
@@ -967,7 +971,7 @@
         renderLicenseSelection();
         const count = Array.isArray(A.licenses_all) ? A.licenses_all.length : 0;
         if(A.licenses_loading){
-          setHint("Выполняется поиск лицензий. Это может занять несколько минут.");
+          setHint("");
         }else{
           setHint(count ? `Найдено лицензий: ${count}.` : "Лицензии не найдены.");
         }
