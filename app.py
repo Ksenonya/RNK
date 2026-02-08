@@ -1,6 +1,8 @@
 from pathlib import Path
 from typing import Any, List, Optional, Literal
 import importlib.util
+from functools import lru_cache
+import openpyxl
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -72,6 +74,90 @@ def find_vars_xlsx() -> Path:
         "Не найден файл 'Переменные из ставок.xlsx'. "
         f"Пробовал: {[str(c) for c in candidates]}"
     )
+
+
+def _iter_rkn_rows_light(rkn_xlsx: Path):
+    wb = openpyxl.load_workbook(rkn_xlsx, read_only=True, data_only=True)
+    ws = wb.active
+    header_raw = list(next(ws.iter_rows(min_row=1, max_row=1, values_only=True)))
+    while header_raw and (header_raw[-1] is None or str(header_raw[-1]).strip() == ""):
+        header_raw.pop()
+    header = header_raw
+    max_col = len(header)
+    it = ws.iter_rows(min_row=2, max_col=max_col, values_only=True)
+    return header, it
+
+
+@lru_cache(maxsize=64)
+def _licenses_light_cached(rkn_path: str, mtime: float, inn: str):
+    rkn_xlsx = Path(rkn_path)
+    header, it = _iter_rkn_rows_light(rkn_xlsx)
+    idx = {h: i for i, h in enumerate(header)}
+
+    def get(row, col):
+        j = idx.get(col)
+        if j is None:
+            return None
+        if j >= len(row):
+            return None
+        return row[j]
+
+    by_license = {}
+    for row in it:
+        row_inn = str(get(row, "ns1:inn") or "").strip()
+        if row_inn != inn:
+            continue
+
+        status = str(get(row, "ns1:status") or "").strip().lower()
+        if status and status != "действующая":
+            continue
+
+        lic_id = str(get(row, "ns1:license_num") or "").strip()
+        if not lic_id:
+            continue
+
+        org_name = str(get(row, "ns1:org_name") or "").strip()
+        sreda = str(get(row, "ns1:sreda") or "").strip()
+        pop_raw = get(row, "ns1:population")
+
+        lic = by_license.setdefault(lic_id, {
+            "org_name": org_name,
+            "media_raw": sreda,
+            "pop_values": set(),
+            "pop_notes": [],
+        })
+
+        pop_int, pop_notes = rao_mod.parse_population(pop_raw)
+        if pop_int is not None:
+            lic["pop_values"].add(int(pop_int))
+        if pop_notes:
+            lic["pop_notes"].extend(pop_notes)
+
+        if not lic["media_raw"] and sreda:
+            lic["media_raw"] = sreda
+
+    items = []
+    for lic_id, data in by_license.items():
+        pop_total = None
+        if data["pop_values"]:
+            pop_total = int(sum(sorted(data["pop_values"])))
+        media_raw = data.get("media_raw") or ""
+        media_class = rao_mod.normalize_media(media_raw)
+        items.append({
+            "license_id": lic_id,
+            "media_raw": media_raw,
+            "media_class": media_class,
+            "population_total": pop_total,
+            "population_notes": data.get("pop_notes", [])[:2],
+            "channels_count": 0,
+            "rkn_url": rao_mod.build_rkn_url(lic_id),
+            "org_name": data.get("org_name", ""),
+        })
+    return items
+
+
+def load_licenses_light(rkn_xlsx: Path, inn: str):
+    return _licenses_light_cached(str(rkn_xlsx), rkn_xlsx.stat().st_mtime, inn)
 
 app = FastAPI()
 app.add_middleware(
@@ -327,29 +413,33 @@ def api_licenses(inn: str):
 
     try:
         rkn_xlsx = find_rkn_xlsx()
-        vars_xlsx = find_vars_xlsx()
     except Exception as e:
         return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
 
+    # Лёгкая загрузка без pandas: быстрее и стабильнее для Render
     try:
-        licenses, notes = load_licenses_by_inn(rkn_xlsx, inn_clean, vars_xlsx)
+        items = load_licenses_light(rkn_xlsx, inn_clean)
+        return {"ok": True, "inn": inn_clean, "licenses": items, "notes": []}
     except Exception as e:
-        return JSONResponse(status_code=500, content={"ok": False, "error": f"Ошибка загрузки лицензий: {e}"})
-
-    items = []
-    for lic in licenses:
-        items.append({
-            "license_id": lic.license_id,
-            "media_raw": lic.media_raw,
-            "media_class": lic.media_class,
-            "population_total": lic.population_total,
-            "population_notes": lic.population_notes[:2],
-            "channels_count": len(lic.channels),
-            "rkn_url": lic.rkn_url,
-            "org_name": lic.org_name,
-        })
-
-    return {"ok": True, "inn": inn_clean, "licenses": items, "notes": notes}
+        # fallback на «тяжёлую» загрузку (на случай несовместимости)
+        try:
+            vars_xlsx = find_vars_xlsx()
+            licenses, notes = load_licenses_by_inn(rkn_xlsx, inn_clean, vars_xlsx)
+            items = []
+            for lic in licenses:
+                items.append({
+                    "license_id": lic.license_id,
+                    "media_raw": lic.media_raw,
+                    "media_class": lic.media_class,
+                    "population_total": lic.population_total,
+                    "population_notes": lic.population_notes[:2],
+                    "channels_count": len(lic.channels),
+                    "rkn_url": lic.rkn_url,
+                    "org_name": lic.org_name,
+                })
+            return {"ok": True, "inn": inn_clean, "licenses": items, "notes": notes}
+        except Exception as e2:
+            return JSONResponse(status_code=500, content={"ok": False, "error": f"Ошибка загрузки лицензий: {e} / fallback: {e2}"})
 
 
 @app.post("/api/calc")
