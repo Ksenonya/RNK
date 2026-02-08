@@ -133,6 +133,18 @@
       animation: spin .8s linear infinite;
       display:none;
     }
+    .loadingBox{
+      display:none;
+      align-items:center;
+      gap:10px;
+      margin-top:10px;
+      padding:8px 10px;
+      border-radius:12px;
+      border:1px solid var(--line);
+      background: rgba(0,0,0,.18);
+    }
+    .loadingText{ font-size:13px; color: var(--text); }
+    .loadingPercent{ font-size:12px; color: var(--muted); margin-left:auto; }
     @keyframes spin{ to{ transform: rotate(360deg);} }
     .muted{ color: var(--muted); font-size: 13px; }
     
@@ -140,7 +152,10 @@
 
     .licenseList{ display:flex; flex-direction:column; gap:10px; }
     .licenseItem{ padding:12px; border-radius:12px; border:1px solid var(--line); background: rgba(0,0,0,.18); }
-    .licenseHeader{ display:flex; align-items:flex-start; gap:10px; }
+    .licenseHeader{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+    .licenseInfo{ flex:1; }
+    .licenseCheck{ margin-top:2px; }
+    .licenseSelectAll{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
     .licenseMeta{ font-size:12px; color: var(--muted); margin-top:4px; }
     .licenseControls{ margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; }
     .licenseSelect{ width:100%; }
@@ -176,6 +191,11 @@
           <div id="inputBox"></div>
           <div class="error" id="errBox"></div>
           <div class="muted" id="hintBox" style="margin-top:10px; display:none;"></div>
+          <div class="loadingBox" id="loadingBox">
+            <div class="spinner" id="loadingSpin" style="display:inline-block;"></div>
+            <div class="loadingText" id="loadingText">Идёт обработка…</div>
+            <div class="loadingPercent" id="loadingPercent">0%</div>
+          </div>
 
 
           <div class="actions">
@@ -239,6 +259,10 @@
   const summary = document.getElementById("summary");
   const output = document.getElementById("output");
   const spin = document.getElementById("spin");
+  const loadingBox = document.getElementById("loadingBox");
+  const loadingText = document.getElementById("loadingText");
+  const loadingPercent = document.getElementById("loadingPercent");
+  const loadingSpin = document.getElementById("loadingSpin");
   const SKIP = "__SKIP__";
   const API_PRIMARY = "https://rnk-wof7.onrender.com";
   const API_FALLBACK = location.origin;
@@ -254,6 +278,49 @@
     { label: "2 000 000 – 3 999 999", value: 2000000 },
     { label: "более 4 000 000", value: 4000001 }
   ];
+
+  let loadingTimer = null;
+  let loadingValue = 0;
+  let loadingCount = 0;
+
+  function updateLoading(){
+    if(!loadingBox) return;
+    const v = Math.max(0, Math.min(100, loadingValue));
+    if(loadingPercent) loadingPercent.textContent = `${Math.round(v)}%`;
+  }
+
+  function startLoading(label, forceLabel){
+    const first = (loadingCount || 0) === 0;
+    loadingCount = (loadingCount || 0) + 1;
+    if(label && loadingText && (first || forceLabel)) loadingText.textContent = label;
+    if(!first) return;
+    loadingValue = 8;
+    updateLoading();
+    if(loadingBox) loadingBox.style.display = "flex";
+    if(loadingSpin) loadingSpin.style.display = "inline-block";
+    loadingTimer = setInterval(()=>{
+      if(loadingValue < 90){
+        loadingValue += 2 + Math.random() * 4;
+      }else{
+        loadingValue += (95 - loadingValue) * 0.05;
+      }
+      updateLoading();
+    }, 350);
+  }
+
+  function stopLoading(){
+    loadingCount = Math.max(0, (loadingCount || 0) - 1);
+    if(loadingCount > 0) return;
+    loadingValue = 100;
+    updateLoading();
+    if(loadingTimer){
+      clearInterval(loadingTimer);
+      loadingTimer = null;
+    }
+    setTimeout(()=>{
+      if(loadingBox) loadingBox.style.display = "none";
+    }, 300);
+  }
 
 
   function escapeHtml(s){
@@ -395,25 +462,29 @@
     }
   }
 
-  async function fetchInnInfo(inn){
-  try{
-    const res = await apiFetch(`${API_BASE}/api/inninfo?inn=${encodeURIComponent(inn)}`);
-    if(!res && API_BASE !== API_FALLBACK){
-      const res2 = await apiFetch(`${API_FALLBACK}/api/inninfo?inn=${encodeURIComponent(inn)}`);
-      if(res2) return await (async()=>{ return await fetchInnInfoWithRes(inn, res2); })();
-    }
-    if(!res){
-      setHint("Ошибка сети /api/inninfo");
+  async function fetchInnInfo(inn, opts){
+    const useLoading = !(opts && opts.loading === false);
+    if(useLoading) startLoading("Ищу компанию по ИНН…");
+    try{
+      const res = await apiFetch(`${API_BASE}/api/inninfo?inn=${encodeURIComponent(inn)}`);
+      if(!res && API_BASE !== API_FALLBACK){
+        const res2 = await apiFetch(`${API_FALLBACK}/api/inninfo?inn=${encodeURIComponent(inn)}`);
+        if(res2) return await (async()=>{ return await fetchInnInfoWithRes(inn, res2); })();
+      }
+      if(!res){
+        setHint("Ошибка сети /api/inninfo");
+        return false;
+      }
+      return await fetchInnInfoWithRes(inn, res);
+    }catch(e){
+      A.org_name = "";
+      updateSummary();
+      setHint("Ошибка запроса /api/inninfo");
       return false;
+    }finally{
+      if(useLoading) stopLoading();
     }
-    return await fetchInnInfoWithRes(inn, res);
-  }catch(e){
-    A.org_name = "";
-    updateSummary();
-    setHint("Ошибка запроса /api/inninfo");
-    return false;
   }
-}
 
   async function fetchInnInfoWithRes(inn, res){
 
@@ -442,7 +513,9 @@
     return !!A.org_name;
 }
 
-  async function fetchLicenses(inn){
+  async function fetchLicenses(inn, opts){
+    const useLoading = !(opts && opts.loading === false);
+    if(useLoading) startLoading("Ищу лицензии…");
     try{
       A.licenses_loading = true;
       A.licenses_error = null;
@@ -507,6 +580,8 @@
       }catch{}
       setHint(A.licenses_error);
       return false;
+    }finally{
+      if(useLoading) stopLoading();
     }
   }
 
@@ -552,6 +627,7 @@
 
     const rows = items.map(lic => {
       const id = lic.license_id;
+      const smiName = lic.smi_name ? String(lic.smi_name) : "—";
       const pop = (lic.population_total != null) ? String(lic.population_total).replace(/\B(?=(\d{3})+(?!\d))/g, " ") : "не найдено";
       const notes = Array.isArray(lic.population_notes) && lic.population_notes.length
         ? `<div class="licenseMeta">${escapeHtml(lic.population_notes.join("; "))}</div>`
@@ -559,13 +635,14 @@
       return `
         <div class="licenseItem">
           <div class="licenseHeader">
-            <input type="checkbox" data-lic-id="${escapeHtml(id)}" ${selected.has(id) ? "checked" : ""}/>
-            <div>
-              <div><strong>${escapeHtml(id)}</strong></div>
+            <div class="licenseInfo">
+              <div><strong>${escapeHtml(smiName)}</strong></div>
+              <div class="licenseMeta">Лицензия: ${escapeHtml(id)}</div>
               <div class="licenseMeta">Среда: ${escapeHtml(lic.media_raw || "—")} → ${escapeHtml(lic.media_class || "—")}</div>
               <div class="licenseMeta">Население (РКН/авто): ${escapeHtml(pop)}</div>
               ${notes}
             </div>
+            <input class="licenseCheck" type="checkbox" data-lic-id="${escapeHtml(id)}" ${selected.has(id) ? "checked" : ""}/>
           </div>
         </div>
       `;
@@ -574,10 +651,10 @@
     setInputHtml(`
       <div class="licenseList">
         <div class="licenseItem">
-          <label style="display:flex; align-items:center; gap:8px;">
+          <div class="licenseSelectAll">
+            <div>Выбрать все лицензии</div>
             <input type="checkbox" id="licSelectAll" ${allChecked ? "checked" : ""}/>
-            Выбрать все лицензии
-          </label>
+          </div>
         </div>
         ${rows}
       </div>
@@ -619,12 +696,14 @@
 
     const rows = items.map(lic => {
       const id = lic.license_id;
+      const smiName = lic.smi_name ? String(lic.smi_name) : "—";
       const isSelected = selectedSet.has(id);
       const autoPop = lic.population_total != null ? String(lic.population_total).replace(/\B(?=(\d{3})+(?!\d))/g, " ") : "не найдено";
       const current = A.population_by_license ? A.population_by_license[id] : null;
       return `
         <div class="licenseItem">
-          <div><strong>${escapeHtml(id)}</strong></div>
+          <div><strong>${escapeHtml(smiName)}</strong></div>
+          <div class="licenseMeta">Лицензия: ${escapeHtml(id)}</div>
           <div class="licenseMeta">Авто по РКН: ${escapeHtml(autoPop)}</div>
           <div class="licenseMeta">${isSelected ? "Участвует в расчёте" : "Не участвует в расчёте"}</div>
           <div class="licenseControls">
@@ -661,6 +740,7 @@
 
     const rows = selected.map(id => {
       const lic = byId[id] || {};
+      const smiName = lic.smi_name ? String(lic.smi_name) : "—";
       const autoPopRaw = (lic.population_total != null) ? String(lic.population_total) : "";
       const autoPop = autoPopRaw ? autoPopRaw.replace(/\B(?=(\d{3})+(?!\d))/g, " ") : "не найдено";
       const current = (A.population_by_license && A.population_by_license[id] != null)
@@ -668,7 +748,8 @@
         : (lic.population_total != null ? lic.population_total : "");
       return `
         <div class="licenseItem">
-          <div><strong>${escapeHtml(id)}</strong></div>
+          <div><strong>${escapeHtml(smiName)}</strong></div>
+          <div class="licenseMeta">Лицензия: ${escapeHtml(id)}</div>
           <div class="licenseMeta">Авто по РКН: ${escapeHtml(autoPop)}</div>
           <div class="licenseControls">
             <input type="text" class="licenseSelect" data-pop-lic-id="${escapeHtml(id)}" placeholder="например 987000" value="${escapeHtml(String(current))}"/>
@@ -1105,6 +1186,7 @@
 
   async function runCalc(){
     output.textContent = "";
+    startLoading("Идёт расчёт…", true);
     spin.style.display = "inline-block";
 
     const payload = {
@@ -1174,6 +1256,7 @@
       output.textContent = "Ошибка запроса к серверу: " + (e?.message ?? String(e));
     }finally{
       spin.style.display = "none";
+      stopLoading();
     }
   }
 
@@ -1225,21 +1308,21 @@
       setError("");
       setHint("Ищу компанию по ИНН…");
       nextBtn.disabled = true;
-      spin.style.display = "inline-block";
+      startLoading("Ищу компанию и лицензии…", true);
 
     try{
     // чтобы не висеть бесконечно — таймаут 5 секунд
     setHint("Ищу компанию по ИНН…");
 
     await Promise.race([
-      Promise.all([fetchInnInfo(parsed), fetchLicenses(parsed)]),
+      Promise.all([fetchInnInfo(parsed, {loading:false}), fetchLicenses(parsed, {loading:false})]),
       new Promise((_, reject)=> setTimeout(()=> reject(new Error("timeout")), 5000))
     ]);
   }catch(e){
     // если таймаут/ошибка — просто продолжаем дальше
     // (название может подгрузиться позже или не найтись)
   }finally{
-    spin.style.display = "none";
+    stopLoading();
     nextBtn.disabled = false;
   }
 }

@@ -3,6 +3,7 @@ from typing import Any, List, Optional, Literal
 import importlib.util
 from functools import lru_cache
 import openpyxl
+import sqlite3
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -67,6 +68,20 @@ def find_rkn_xlsx() -> Path:
         f"Пробовал: {[str(c) for c in candidates]}"
     )
 
+def find_rkn_db() -> Optional[Path]:
+    candidates = [
+        BASE_DIR / "Таблица РКН.sqlite",
+        BASE_DIR / "Таблица РКН.db",
+        RAO_DIR / "Таблица РКН.sqlite",
+        RAO_DIR / "Таблица РКН.db",
+        Path.cwd() / "Таблица РКН.sqlite",
+        Path.cwd() / "Таблица РКН.db",
+    ]
+    for p in candidates:
+        if p.exists():
+            return p
+    return None
+
 def find_vars_xlsx() -> Path:
     candidates = [
         BASE_DIR / "Переменные из ставок.xlsx",
@@ -125,12 +140,15 @@ def _licenses_light_cached(rkn_path: str, mtime: float, inn: str):
         org_name = str(get(row, "ns1:org_name") or "").strip()
         sreda = str(get(row, "ns1:sreda") or "").strip()
         pop_raw = get(row, "ns1:population")
+        smi14 = str(get(row, "ns1:smi_name14") or "").strip()
+        smi = str(get(row, "ns1:smi_name") or "").strip()
 
         lic = by_license.setdefault(lic_id, {
             "org_name": org_name,
             "media_raw": sreda,
             "pop_values": set(),
             "pop_notes": [],
+            "smi_values": set(),
         })
 
         pop_int, pop_notes = rao_mod.parse_population(pop_raw)
@@ -141,6 +159,10 @@ def _licenses_light_cached(rkn_path: str, mtime: float, inn: str):
 
         if not lic["media_raw"] and sreda:
             lic["media_raw"] = sreda
+        if smi14:
+            lic["smi_values"].add(smi14)
+        elif smi:
+            lic["smi_values"].add(smi)
 
     items = []
     for lic_id, data in by_license.items():
@@ -149,6 +171,9 @@ def _licenses_light_cached(rkn_path: str, mtime: float, inn: str):
             pop_total = int(sum(sorted(data["pop_values"])))
         media_raw = data.get("media_raw") or ""
         media_class = rao_mod.normalize_media(media_raw)
+        smi_name = ""
+        if data["smi_values"]:
+            smi_name = sorted(data["smi_values"], key=lambda x: (len(x), x))[0]
         items.append({
             "license_id": lic_id,
             "media_raw": media_raw,
@@ -158,12 +183,139 @@ def _licenses_light_cached(rkn_path: str, mtime: float, inn: str):
             "channels_count": 0,
             "rkn_url": rao_mod.build_rkn_url(lic_id),
             "org_name": data.get("org_name", ""),
+            "smi_name": smi_name,
         })
     return items
 
 
 def load_licenses_light(rkn_xlsx: Path, inn: str):
     return _licenses_light_cached(str(rkn_xlsx), rkn_xlsx.stat().st_mtime, inn)
+
+
+_RKN_INDEX = None
+_RKN_INDEX_MTIME = None
+_RKN_INDEX_SRC = None
+
+
+def _build_rkn_index_from_sqlite(db_path: Path):
+    idx = {}
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    for row in cur.execute(
+        "SELECT inn, org_name, license_num, sreda, population, status, smi_name14, smi_name FROM rkn"
+    ):
+        inn, org_name, lic_id, sreda, pop_raw, status, smi14, smi = row
+        inn = (inn or "").strip()
+        if not inn:
+            continue
+        st = (status or "").strip().lower()
+        if st and st != "действующая":
+            continue
+        lic_id = (lic_id or "").strip()
+        if not lic_id:
+            continue
+        by_lic = idx.setdefault(inn, {})
+        lic = by_lic.setdefault(
+            lic_id,
+            {
+                "org_name": (org_name or "").strip(),
+                "media_raw": (sreda or "").strip(),
+                "pop_values": set(),
+                "pop_notes": [],
+                "smi_values": set(),
+            },
+        )
+        pop_int, pop_notes = rao_mod.parse_population(pop_raw)
+        if pop_int is not None:
+            lic["pop_values"].add(int(pop_int))
+        if pop_notes:
+            lic["pop_notes"].extend(pop_notes)
+        if smi14:
+            lic["smi_values"].add(str(smi14).strip())
+        elif smi:
+            lic["smi_values"].add(str(smi).strip())
+    conn.close()
+    return idx
+
+
+def _build_rkn_index_from_xlsx(rkn_xlsx: Path):
+    header, it = _iter_rkn_rows_light(rkn_xlsx)
+    idx = {h: i for i, h in enumerate(header)}
+
+    def get(row, col):
+        j = idx.get(col)
+        if j is None:
+            return None
+        if j >= len(row):
+            return None
+        return row[j]
+
+    out = {}
+    for row in it:
+        inn = str(get(row, "ns1:inn") or "").strip()
+        if not inn:
+            continue
+        status = str(get(row, "ns1:status") or "").strip().lower()
+        if status and status != "действующая":
+            continue
+        lic_id = str(get(row, "ns1:license_num") or "").strip()
+        if not lic_id:
+            continue
+        org_name = str(get(row, "ns1:org_name") or "").strip()
+        sreda = str(get(row, "ns1:sreda") or "").strip()
+        pop_raw = get(row, "ns1:population")
+        smi14 = str(get(row, "ns1:smi_name14") or "").strip()
+        smi = str(get(row, "ns1:smi_name") or "").strip()
+
+        by_lic = out.setdefault(inn, {})
+        lic = by_lic.setdefault(
+            lic_id,
+            {
+                "org_name": org_name,
+                "media_raw": sreda,
+                "pop_values": set(),
+                "pop_notes": [],
+                "smi_values": set(),
+            },
+        )
+        pop_int, pop_notes = rao_mod.parse_population(pop_raw)
+        if pop_int is not None:
+            lic["pop_values"].add(int(pop_int))
+        if pop_notes:
+            lic["pop_notes"].extend(pop_notes)
+        if smi14:
+            lic["smi_values"].add(smi14)
+        elif smi:
+            lic["smi_values"].add(smi)
+    return out
+
+
+def get_licenses_index():
+    global _RKN_INDEX, _RKN_INDEX_MTIME, _RKN_INDEX_SRC
+    db = find_rkn_db()
+    if db:
+        mtime = db.stat().st_mtime
+        if (
+            _RKN_INDEX is None
+            or _RKN_INDEX_MTIME != mtime
+            or _RKN_INDEX_SRC != str(db)
+        ):
+            _RKN_INDEX = _build_rkn_index_from_sqlite(db)
+            _RKN_INDEX_MTIME = mtime
+            _RKN_INDEX_SRC = str(db)
+        return _RKN_INDEX
+
+    rkn_xlsx = find_rkn_xlsx()
+    mtime = rkn_xlsx.stat().st_mtime
+    if (
+        _RKN_INDEX is None
+        or _RKN_INDEX_MTIME != mtime
+        or _RKN_INDEX_SRC != str(rkn_xlsx)
+    ):
+        _RKN_INDEX = _build_rkn_index_from_xlsx(rkn_xlsx)
+        _RKN_INDEX_MTIME = mtime
+        _RKN_INDEX_SRC = str(rkn_xlsx)
+    return _RKN_INDEX
 
 app = FastAPI()
 app.add_middleware(
@@ -422,28 +574,37 @@ def api_licenses(inn: str):
     except Exception as e:
         return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
 
-    # Лёгкая загрузка без pandas: быстрее и стабильнее для Render
+    # Быстрая загрузка из индекса (sqlite/память)
     try:
-        items = load_licenses_light(rkn_xlsx, inn_clean)
+        index = get_licenses_index()
+        by_lic = index.get(inn_clean, {})
+        items = []
+        for lic_id, data in by_lic.items():
+            pop_total = None
+            if data["pop_values"]:
+                pop_total = int(sum(sorted(data["pop_values"])))
+            media_raw = data.get("media_raw") or ""
+            media_class = rao_mod.normalize_media(media_raw)
+            smi_name = ""
+            if data.get("smi_values"):
+                smi_name = sorted(data["smi_values"], key=lambda x: (len(x), x))[0]
+            items.append({
+                "license_id": lic_id,
+                "media_raw": media_raw,
+                "media_class": media_class,
+                "population_total": pop_total,
+                "population_notes": data.get("pop_notes", [])[:2],
+                "channels_count": 0,
+                "rkn_url": rao_mod.build_rkn_url(lic_id),
+                "org_name": data.get("org_name", ""),
+                "smi_name": smi_name,
+            })
         return {"ok": True, "inn": inn_clean, "licenses": items, "notes": []}
     except Exception as e:
-        # fallback на «тяжёлую» загрузку (на случай несовместимости)
+        # fallback на «лёгкую» загрузку без индекса
         try:
-            vars_xlsx = find_vars_xlsx()
-            licenses, notes = load_licenses_by_inn(rkn_xlsx, inn_clean, vars_xlsx)
-            items = []
-            for lic in licenses:
-                items.append({
-                    "license_id": lic.license_id,
-                    "media_raw": lic.media_raw,
-                    "media_class": lic.media_class,
-                    "population_total": lic.population_total,
-                    "population_notes": lic.population_notes[:2],
-                    "channels_count": len(lic.channels),
-                    "rkn_url": lic.rkn_url,
-                    "org_name": lic.org_name,
-                })
-            return {"ok": True, "inn": inn_clean, "licenses": items, "notes": notes}
+            items = load_licenses_light(rkn_xlsx, inn_clean)
+            return {"ok": True, "inn": inn_clean, "licenses": items, "notes": []}
         except Exception as e2:
             return JSONResponse(status_code=500, content={"ok": False, "error": f"Ошибка загрузки лицензий: {e} / fallback: {e2}"})
 
